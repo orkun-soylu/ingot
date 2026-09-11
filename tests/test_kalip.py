@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import gzip
+import lzma
+import shutil
 import subprocess
 import sys
 import tempfile
 import tomllib
 import unittest
+import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -123,15 +127,32 @@ class PiConfigTest(unittest.TestCase):
 
 
 class SourceTest(unittest.TestCase):
+    HAS_ZSTD = shutil.which("zstd") is not None
+
     @classmethod
     def setUpClass(cls):
+        # Fixture'lar stdlib ile uretilir: derleme icin harici arac gerekmesin.
         cls.tmp = tempfile.TemporaryDirectory()
         root = Path(cls.tmp.name)
+        payload = cls._pi_mbr() + b"\0" * (2 * 1024 * 1024 - 512)
         cls.raw = root / "disk.img"
-        cls.raw.write_bytes(cls._pi_mbr() + b"\0" * (2 * 1024 * 1024 - 512))
-        for args in (["xz", "-k"], ["gzip", "-kn"], ["zstd", "-q", "-k"]):
-            subprocess.run([*args, str(cls.raw)], check=True, cwd=root)
-        subprocess.run(["zip", "-q", "disk.zip", "disk.img"], check=True, cwd=root)
+        cls.raw.write_bytes(payload)
+
+        with lzma.open(root / "disk.img.xz", "wb") as fh:
+            fh.write(payload)
+        with gzip.GzipFile(root / "disk.img.gz", "wb", mtime=0) as fh:
+            fh.write(payload)
+        with zipfile.ZipFile(root / "disk.zip", "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("disk.img", payload)
+        if cls.HAS_ZSTD:
+            subprocess.run(["zstd", "-q", "-k", str(cls.raw)], check=True, cwd=root)
+
+    @classmethod
+    def _names(cls) -> list[str]:
+        names = ["disk.img", "disk.img.xz", "disk.img.gz", "disk.zip"]
+        if cls.HAS_ZSTD:
+            names.append("disk.img.zst")
+        return names
 
     @classmethod
     def tearDownClass(cls):
@@ -153,17 +174,17 @@ class SourceTest(unittest.TestCase):
             "disk.img": None, "disk.img.xz": "xz", "disk.img.gz": "gzip",
             "disk.img.zst": "zstd", "disk.zip": "zip",
         }
-        for name, compression in beklenen.items():
+        for name in self._names():
             with self.subTest(name=name):
-                self.assertEqual(probe(Path(self.tmp.name) / name).compression, compression)
+                self.assertEqual(probe(Path(self.tmp.name) / name).compression, beklenen[name])
 
     def test_acilmis_boyut_dogru(self):
-        for name in ("disk.img", "disk.img.xz", "disk.img.gz", "disk.img.zst", "disk.zip"):
+        for name in self._names():
             with self.subTest(name=name):
                 self.assertEqual(probe(Path(self.tmp.name) / name).payload_size, 2 * 1024 * 1024)
 
     def test_pi_imzasi_sikistirmanin_icinden_okunur(self):
-        for name in ("disk.img", "disk.img.xz", "disk.img.gz", "disk.img.zst", "disk.zip"):
+        for name in self._names():
             with self.subTest(name=name):
                 self.assertTrue(probe(Path(self.tmp.name) / name).is_pi_image)
 

@@ -4,8 +4,10 @@ Priority: optional
 Maintainer: Orkun Soylu <103385766+orkun-soylu@users.noreply.github.com>
 Build-Depends: debhelper-compat (= 13),
                dh-python,
+               pybuild-plugin-pyproject,
                python3-all,
-               python3-setuptools
+               python3-setuptools,
+               zstd
 Standards-Version: 4.7.0
 Rules-Requires-Root: no
 Homepage: https://github.com/orkun-soylu/ingot
@@ -22,8 +24,7 @@ Depends: ${python3:Depends},
          util-linux (>= 2.38),
          curl,
          openssl,
-         xz-utils,
-         gzip
+         xz-utils
 Recommends: zstd, unzip, dosfstools
 Description: disk image writer for USB, SD and NVMe media
  kalip writes Linux ISO images and Raspberry Pi OS images to removable media

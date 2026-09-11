@@ -303,16 +303,34 @@ def verify_image(device: str, length: int, expected: str) -> None:
 # --------------------------------------------------------------------------- #
 
 def reread_partitions(device: str) -> None:
+    """Çekirdeğe yeni bölüm tablosunu okut.
+
+    Hiçbir yolu zorunlu değildir: başarısız olsa bile bölüm düğümleri zaten
+    oluşmuş olabilir, seed tarafı yine de bekleyip tekrar bakar. Bu yüzden
+    burada hata fırlatılmaz -- eskiden partprobe kurulu değilse (parted paketi
+    yoksa) FileNotFoundError except bloğunun içinden fırlıyor ve yazılmış bir
+    medyada custom.toml adımını tümden düşürüyordu.
+    """
     status("bölüm tablosu yeniden okunuyor")
+
     try:
         fd = os.open(device, os.O_RDONLY | os.O_CLOEXEC)
         try:
             fcntl.ioctl(fd, BLKRRPART, 0)
+            return
         finally:
             os.close(fd)
     except OSError:
-        subprocess.run(["partprobe", "--", device], capture_output=True)
-    subprocess.run(["udevadm", "settle", "--timeout=15"], capture_output=True)
+        pass
+
+    # blockdev util-linux'ta, o da zaten sert bağımlılık. partprobe (parted)
+    # olmayabilir -- varsa denenir, yoksa sessizce geçilir.
+    for command in (["blockdev", "--rereadpt", device], ["partprobe", "--", device]):
+        try:
+            if subprocess.run(command, capture_output=True).returncode == 0:
+                return
+        except OSError:
+            continue
 
 
 def first_fat_partition(device: str) -> str | None:
@@ -403,6 +421,7 @@ def main() -> int:
             verify_image(args.device, written, digest)
 
         reread_partitions(args.device)
+        subprocess.run(["udevadm", "settle", "--timeout=15"], capture_output=True)
 
         if args.toml:
             seed_custom_toml(args.device, args.toml)

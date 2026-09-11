@@ -31,6 +31,12 @@
     </p>
   </description>
 
+  <url type="homepage">https://github.com/orkun-soylu/ingot</url>
+
+  <developer id="me.soylu">
+    <name>Orkun Soylu</name>
+  </developer>
+
   <launchable type="desktop-id">me.soylu.kalip.desktop</launchable>
   <provides><binary>kalip</binary></provides>
   <categories>

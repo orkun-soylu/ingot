@@ -20,25 +20,31 @@ polkit ajanı gösterir, yani o hata sınıfı hiç doğmaz.
 ## Kurulum
 
 ```bash
-sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 policykit-1 \
-                 util-linux curl openssl xz-utils gzip zstd unzip dosfstools
-git clone https://github.com/orkun-soylu/ingot.git kalip && cd kalip
-./install.sh
+sudo apt install ./kalip_1.0.0-1_all.deb
 ```
 
-`install.sh` üç şey kurar:
+Bağımlılıkları apt kendi çeker. Paket `Architecture: all` — her Debian/Ubuntu
+mimarisinde aynı dosya kurulur.
+
+Kaldırmak:
+
+```bash
+sudo apt purge kalip      # hicbir dosya, polkit kurali veya menu girdisi kalmaz
+```
+
+Paketin kurduğu şeyler:
 
 | Ne | Nereye |
 |---|---|
-| Ayrıcalıklı helper | `/usr/local/libexec/kalip/kalip-helper` (root'a ait **kopya**) |
+| Uygulama | `/usr/bin/kalip`, `/usr/lib/python3/dist-packages/kalip/` |
+| Ayrıcalıklı helper | `/usr/libexec/kalip/kalip-helper` (dpkg `root:root 0755` kurar) |
 | polkit kuralı | `/usr/share/polkit-1/actions/me.soylu.kalip.policy` |
-| Başlatıcı + menü girdisi | `/usr/local/bin/kalip`, `~/.local/share/applications/` |
+| Menü girdisi + ikon | `/usr/share/applications/`, `/usr/share/icons/hicolor/` |
+| Kılavuz | `man kalip` |
 
-> Helper repoya symlink **değildir**, bilerek. polkit o yola root yetkisi verir; symlink
-> olsaydı dosyayı değiştirebilen herkes root olurdu. Helper'ı düzenlersen `./install.sh`
-> tekrar çalıştır.
-
-Kaldırmak için `./uninstall.sh`.
+> Helper'ın yolu polkit kuralında sabittir ve dosyayı **yalnız root yazabilir**.
+> Bakım betiği (postinst/postrm) yoktur; dpkg dosyaları zaten root'a ait kurduğu
+> için gerekmiyor.
 
 ## Kullanım
 
@@ -96,9 +102,21 @@ sinyal gönderemez. Arayüz çökerse boru kapanır ve helper yazmayı durdurur.
 ## Geliştirme
 
 ```bash
-python3 -m unittest discover -s tests -v     # 26 test, GUI gerektirmez
-PYTHONPATH=. python3 -m kalip                # kurulmadan çalıştır (helper yine pkexec ister)
+python3 -m unittest discover -s tests -v     # 26 cekirdek testi, GUI gerektirmez
+xvfb-run -a python3 tests/smoke_gui.py       # arayuz duman testi, 20 kontrol, bassiz
+PYTHONPATH=. python3 -m kalip                # kurulmadan calistir
 ```
+
+Paketi derlemek:
+
+```bash
+sudo apt build-dep .    # ya da debian/control icindeki Build-Depends
+dpkg-buildpackage -us -uc -b
+lintian ../kalip_*.deb
+```
+
+Testler paketin derlenmesi sırasında da koşar (`debian/rules`'ta
+`override_dh_auto_test`), yani testi bozan bir değişiklik paketi üretemez.
 
 Helper'ı arayüzsüz sürebilirsin — hata ayıklarken en hızlı yol:
 
