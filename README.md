@@ -73,8 +73,8 @@ Yanlış cihaza yazmak tek gerçek risk. Kapılar:
 
 - **Sistem diski hiç listelenmez.** `/`, `/boot`, `/boot/firmware`, `/home`, `/usr`,
   `/var`, `/nix` ya da swap barındıran disk üretilmez — filtrelenmez, hiç oluşturulmaz.
-- **Dahili diskler varsayılan olarak gizli.** Açtığında onay kutusu aygıt adını
-  (`nvme0n1`) elle yazmanı ister.
+- **Yalnızca çıkarılabilir aygıtlar listelenir.** USB kutusundaki NVMe/SSD de
+  buraya girer (`tran=usb`); dahili diskler arayüzde hiç görünmez.
 - **Helper arayüze güvenmez.** Aynı kontrolleri root tarafında `lsblk` ile yeniden yapar.
   Asıl kapı orasıdır; arayüzdeki filtreler yalnızca kullanıcı deneyimidir.
 - **`O_EXCL`** ile açılır: cihaz kullanımdaysa çekirdek yazmayı reddeder.

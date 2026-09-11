@@ -107,13 +107,6 @@ class KalipWindow(Adw.ApplicationWindow):
         self.disk_row = Adw.ComboRow(title="Aygıt", model=Gtk.StringList.new([]))
         self.disk_row.connect("notify::selected", self._on_disk_selected)
         group.add(self.disk_row)
-
-        self.internal_row = Adw.SwitchRow(
-            title="Dahili diskleri de göster",
-            subtitle="NVMe/SSD'ye yazmak için. Sistem diski hiçbir zaman listelenmez.",
-        )
-        self.internal_row.connect("notify::active", lambda *_: self.refresh_disks())
-        group.add(self.internal_row)
         return group
 
     def _build_pi_group(self) -> Adw.PreferencesGroup:
@@ -219,7 +212,7 @@ class KalipWindow(Adw.ApplicationWindow):
         self.progress.set_visible(busy)
         for widget in (
             self.file_row, self.url_row, self.remote_row, self.disk_row,
-            self.internal_row, self.pi_group, self.verify_row,
+            self.pi_group, self.verify_row,
         ):
             widget.set_sensitive(not busy)
         if not busy:
@@ -239,7 +232,7 @@ class KalipWindow(Adw.ApplicationWindow):
 
     def refresh_disks(self) -> None:
         try:
-            self._disks = list_disks(include_internal=self.internal_row.get_active())
+            self._disks = list_disks()
         except Exception as exc:
             self.notify_user(f"Aygıtlar listelenemedi: {exc}", "error")
             self._disks = []
@@ -250,9 +243,7 @@ class KalipWindow(Adw.ApplicationWindow):
             self.disk_row.set_selected(0)
             self.disk_row.set_subtitle(self._disks[0].subtitle)
         else:
-            self.disk_row.set_subtitle(
-                "Yazılabilir aygıt yok — USB tak, ya da dahili diskleri göster."
-            )
+            self.disk_row.set_subtitle("Yazılabilir aygıt yok — USB veya kart tak.")
         self._update_ready()
 
     def _on_disk_selected(self, *_args) -> None:
@@ -454,24 +445,6 @@ class KalipWindow(Adw.ApplicationWindow):
         dialog.set_response_appearance("write", Adw.ResponseAppearance.DESTRUCTIVE)
         dialog.set_default_response("cancel")
         dialog.set_close_response("cancel")
-
-        if not disk.removable:
-            # Dahili disk: adını elle yazdırmadan devam ettirme.
-            entry = Gtk.Entry(placeholder_text=disk.name)
-            hint = Gtk.Label(
-                label=f"Bu bir dahili disk. Onaylamak için <b>{GLib.markup_escape_text(disk.name)}</b> yaz.",
-                use_markup=True, wrap=True, xalign=0.0,
-            )
-            wrapper = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-            wrapper.append(hint)
-            wrapper.append(entry)
-            dialog.set_extra_child(wrapper)
-            dialog.set_response_enabled("write", False)
-            entry.connect(
-                "changed",
-                lambda e: dialog.set_response_enabled("write", e.get_text().strip() == disk.name),
-            )
-
         dialog.connect("response", self._on_confirm_response, disk, config)
         dialog.present(self)
 

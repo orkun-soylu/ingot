@@ -46,6 +46,9 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="1.0.1" date="2026-09-11">
+      <description><p>Only removable devices are listed.</p></description>
+    </release>
     <release version="1.0.0" date="2026-09-11">
       <description><p>First release.</p></description>
     </release>

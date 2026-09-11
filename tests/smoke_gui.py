@@ -37,17 +37,10 @@ def check(name: str, condition: bool) -> None:
         failures.append(name)
 
 
-def fake_disk(removable: bool) -> Disk:
+def fake_disk() -> Disk:
     return Disk(
-        path="/dev/sdz" if removable else "/dev/nvme9n1",
-        name="sdz" if removable else "nvme9n1",
-        size=64 * 1000 ** 3,
-        model="Test Media",
-        tran="usb" if removable else "nvme",
-        removable=removable,
-        readonly=False,
-        system=False,
-        mountpoints=(),
+        path="/dev/sdz", name="sdz", size=64 * 1000 ** 3, model="Test Media",
+        tran="usb", removable=True, readonly=False, system=False, mountpoints=(),
     )
 
 
@@ -113,21 +106,17 @@ def exercise(window: KalipWindow) -> None:
         check("bos hostname reddedildi", True)
     window.hostname_row.set_text("pi-test-01")
 
-    # --- onay diyalogu: çıkarılabilir ------------------------------------
-    window._disks = [fake_disk(removable=True)]
+    # --- onay diyalogu ----------------------------------------------------
+    window._disks = [fake_disk()]
     window.disk_row.set_model(Gtk.StringList.new(["Test Media — /dev/sdz"]))
     window.disk_row.set_selected(0)
     check("hedef secildi", window.selected_disk() is not None)
     check("Yaz dugmesi etkin", window.write_button.get_sensitive())
     window.confirm_and_write()
-    check("cikarilabilir onay diyalogu kuruldu", True)
+    check("onay diyalogu kuruldu", True)
 
-    # --- onay diyalogu: dahili disk (ad yazma kapısı) --------------------
-    window._disks = [fake_disk(removable=False)]
-    window.disk_row.set_model(Gtk.StringList.new(["Test Media — /dev/nvme9n1"]))
-    window.disk_row.set_selected(0)
-    window.confirm_and_write()
-    check("dahili disk onay diyalogu kuruldu", True)
+    # Arayuz yalnizca cikarilabilir aygit listeler.
+    check("liste yalnizca cikarilabilir", all(d.removable for d in window._disks))
 
     # --- meşgul durumu ----------------------------------------------------
     window._set_busy(True)

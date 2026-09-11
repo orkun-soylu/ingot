@@ -1,3 +1,11 @@
+kalip (1.0.1-1) unstable; urgency=medium
+
+  * Arayuzden "dahili diskleri de goster" anahtari kaldirildi; yalnizca
+    cikarilabilir aygitlar listeleniyor. Ulasilamaz hale gelen dahili disk
+    onay dali da temizlendi. Helper'in sistem diski reddi degismedi.
+
+ -- Orkun Soylu <103385766+orkun-soylu@users.noreply.github.com>  Fri, 11 Sep 2026 23:05:00 +0100
+
 kalip (1.0.0-1) unstable; urgency=medium
 
   * Initial release.
