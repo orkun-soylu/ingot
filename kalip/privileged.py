@@ -14,9 +14,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 HELPER_CANDIDATES = (
-    Path("/usr/local/libexec/kalip/kalip-helper"),
-    Path("/usr/libexec/kalip/kalip-helper"),
-    Path(__file__).resolve().parent.parent / "helper" / "kalip-helper",
+    Path("/usr/libexec/kalip/kalip-helper"),          # .deb ile kurulan
+    Path(__file__).resolve().parent.parent / "helper" / "kalip-helper",  # depodan calistirirken
 )
 
 # pkexec'in iptal ettiği / yetkilendirmenin reddedildiği çıkış kodu
@@ -33,7 +32,8 @@ def helper_path() -> Path:
         if candidate.is_file():
             return candidate
     raise PrivilegeError(
-        "kalip-helper bulunamadı. Kurulum yapıldı mı? (./install.sh)"
+        "kalip-helper bulunamadı — paket eksik kurulmuş olabilir. "
+        "Yeniden kur: sudo apt install --reinstall kalip"
     )
 
 
@@ -41,7 +41,7 @@ def ensure_pkexec() -> str:
     path = shutil.which("pkexec")
     if path is None:
         raise PrivilegeError(
-            "pkexec yok. Kur: sudo apt install policykit-1 (veya pkexec sağlayan paket)."
+            "pkexec yok. Kur: sudo apt install pkexec polkitd"
         )
     return path
 

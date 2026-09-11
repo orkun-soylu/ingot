@@ -1,0 +1,43 @@
+Source: kalip
+Section: utils
+Priority: optional
+Maintainer: Orkun Soylu <103385766+orkun-soylu@users.noreply.github.com>
+Build-Depends: debhelper-compat (= 13),
+               dh-python,
+               python3-all,
+               python3-setuptools
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+Homepage: https://github.com/orkun-soylu/ingot
+
+Package: kalip
+Architecture: all
+Depends: ${python3:Depends},
+         ${misc:Depends},
+         python3-gi,
+         gir1.2-gtk-4.0 (>= 4.10),
+         gir1.2-adw-1 (>= 1.5),
+         pkexec,
+         polkitd,
+         util-linux (>= 2.38),
+         curl,
+         openssl,
+         xz-utils,
+         gzip
+Recommends: zstd, unzip, dosfstools
+Description: disk image writer for USB, SD and NVMe media
+ kalip writes Linux ISO images and Raspberry Pi OS images to removable media
+ and internal drives. Images can be opened from a local file or fetched from a
+ URL, which is queried first so the file name, size and content type are known
+ before anything is downloaded.
+ .
+ When the image is a Raspberry Pi OS image -- detected from its partition table
+ rather than its file name -- first boot settings can be seeded into custom.toml
+ on the boot partition: hostname, user account, SSH keys and password login,
+ wireless network and locale.
+ .
+ The graphical interface never runs as root. Only a small non-graphical helper
+ is elevated through polkit, which is why it works on Wayland sessions where
+ applications that elevate their whole user interface fail. The helper
+ re-validates the target device on its own and refuses to write to any disk
+ holding a mounted system filesystem or swap.

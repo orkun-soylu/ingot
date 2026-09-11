@@ -1,0 +1,84 @@
+.TH KALIP 1 "2026-09-11" "kalip 1.0.0" "User Commands"
+.SH NAME
+kalip \- write disk images to USB, SD and NVMe media
+.SH SYNOPSIS
+.B kalip
+.RI [ IMAGE ]
+.br
+.B kalip
+.B \-\-version
+.SH DESCRIPTION
+.B kalip
+writes Linux ISO images and Raspberry Pi OS images to storage media. If
+.I IMAGE
+is given it is opened on startup; otherwise a file can be chosen from the
+interface or fetched from a URL.
+.PP
+Images may be raw
+.RB ( .iso ", " .img ", " .raw )
+or compressed with xz, gzip, zstd or zip. The format is detected from the
+file's magic bytes, not its extension.
+.PP
+A URL is queried before anything is transferred: the redirect chain is
+followed and the resulting file name, size and content type are reported.
+Downloads are cached under
+.I ~/.cache/kalip
+so writing the same image again does not fetch it twice.
+.SH RASPBERRY PI OS
+When the image's partition table matches a Raspberry Pi OS layout \(en a FAT
+boot partition followed by a Linux root partition \(en first boot settings can
+be written to
+.I custom.toml
+on the boot partition: hostname, user account and password, SSH public keys and
+whether password login is permitted, wireless network, keyboard layout and time
+zone. This applies to Raspberry Pi OS bookworm and later. Static addressing and
+multiple wireless networks are not expressible in that format.
+.SH PRIVILEGES
+The interface never runs as root. Writing is performed by
+.I /usr/libexec/kalip/kalip-helper
+which is elevated through polkit under the action
+.BR me.soylu.kalip.write .
+Because the helper has no graphical interface of its own, this works in Wayland
+sessions, where applications that elevate their entire interface cannot connect
+to the display.
+.PP
+The helper re-validates its target independently of the interface. It refuses to
+write to any whole device holding a mounted system filesystem
+.RI ( / ", " /boot ", " /home ", " /usr ", " /var )
+or swap, opens the device with
+.B O_EXCL
+so the kernel rejects a device still in use, and checks the image against the
+device's capacity before writing a byte.
+.SH VERIFICATION
+With verification enabled the written range is read back and compared by
+SHA\-256.
+.BR posix_fadvise (2)
+is called with
+.B POSIX_FADV_DONTNEED
+first, so the comparison reads the device rather than the page cache.
+.SH FILES
+.TP
+.I ~/.cache/kalip
+Downloaded images.
+.TP
+.I /usr/libexec/kalip/kalip-helper
+Privileged helper. Can be run directly under
+.BR sudo (8)
+for debugging; see
+.BR \-\-help .
+.TP
+.I /usr/share/polkit-1/actions/me.soylu.kalip.policy
+polkit action definition.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+The image could not be written.
+.SH SEE ALSO
+.BR lsblk (8),
+.BR pkexec (1),
+.BR dd (1)
+.SH AUTHOR
+Orkun Soylu <103385766+orkun-soylu@users.noreply.github.com>

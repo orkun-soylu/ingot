@@ -1,0 +1,24 @@
+#!/usr/bin/make -f
+export PYBUILD_NAME=kalip
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+%:
+	dh $@ --with python3 --buildsystem=pybuild
+
+override_dh_auto_test:
+	python3 -m unittest discover -s tests -v
+
+override_dh_auto_install:
+	dh_auto_install
+	# Ayricalikli yardimci. polkit tam bu yola yetki verir; dpkg dosyayi
+	# root:root 0755 kurar, bu yuzden bakim betigine gerek yok.
+	install -D -m 0755 helper/kalip-helper \
+		debian/kalip/usr/libexec/kalip/kalip-helper
+	install -D -m 0644 data/me.soylu.kalip.policy \
+		debian/kalip/usr/share/polkit-1/actions/me.soylu.kalip.policy
+	install -D -m 0644 data/me.soylu.kalip.desktop \
+		debian/kalip/usr/share/applications/me.soylu.kalip.desktop
+	install -D -m 0644 data/me.soylu.kalip.svg \
+		debian/kalip/usr/share/icons/hicolor/scalable/apps/me.soylu.kalip.svg
+	install -D -m 0644 data/me.soylu.kalip.metainfo.xml \
+		debian/kalip/usr/share/metainfo/me.soylu.kalip.metainfo.xml
