@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1.0/policyconfig.dtd">
+<policyconfig>
+  <vendor>kalip</vendor>
+  <vendor_url>https://github.com/orkun-soylu/ingot</vendor_url>
+
+  <action id="me.soylu.kalip.write">
+    <description>Write a disk image to storage media</description>
+    <description xml:lang="tr">Disk imajını depolama medyasına yaz</description>
+    <message>Authentication is required to write a disk image.</message>
+    <message xml:lang="tr">Disk imajı yazmak için kimlik doğrulaması gerekiyor.</message>
+    <icon_name>drive-removable-media</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/local/libexec/kalip/kalip-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+</policyconfig>
