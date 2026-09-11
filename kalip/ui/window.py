@@ -23,7 +23,9 @@ IMAGE_PATTERNS = ("*.iso", "*.img", "*.raw", "*.xz", "*.gz", "*.zst", "*.zip")
 class KalipWindow(Adw.ApplicationWindow):
     def __init__(self, application: Adw.Application) -> None:
         super().__init__(application=application, title="kalıp")
-        self.set_default_size(620, 760)
+        # Yukseklik -1: pencere icerigin dogal yuksekligini alir. Sabit bir
+        # yukseklik verilirse kisa icerikte altta genis bir bosluk kaliyor.
+        self.set_default_size(620, -1)
 
         self._disks: list[Disk] = []
         self._source: source_mod.ImageSource | None = None
@@ -57,12 +59,18 @@ class KalipWindow(Adw.ApplicationWindow):
         box.append(self._build_target_group())
         box.append(self._build_pi_group())
         box.append(self._build_options_group())
-        box.append(self._build_action_area())
 
         clamp = Adw.Clamp(maximum_size=680, child=box)
         scroller = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER, vexpand=True)
         scroller.set_child(clamp)
+        # Icerik kisayken pencere onun boyunda acilsin; uzayinca kaydirilir.
+        scroller.set_propagate_natural_height(True)
+        scroller.set_max_content_height(720)
         view.set_content(scroller)
+
+        # Yaz dugmesi alt cubukta: Pi paneli acilip icerik tastiginda bile
+        # kaydirmadan erisilebilir kalir.
+        view.add_bottom_bar(self._build_action_area())
         return view
 
     def _build_source_group(self) -> Adw.PreferencesGroup:
@@ -170,7 +178,12 @@ class KalipWindow(Adw.ApplicationWindow):
         return group
 
     def _build_action_area(self) -> Gtk.Widget:
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        box.add_css_class("toolbar")
+        box.set_margin_top(10)
+        box.set_margin_bottom(12)
+        box.set_margin_start(12)
+        box.set_margin_end(12)
 
         self.write_button = Gtk.Button(label="Yaz", halign=Gtk.Align.CENTER, sensitive=False)
         self.write_button.add_css_class("destructive-action")
@@ -187,12 +200,25 @@ class KalipWindow(Adw.ApplicationWindow):
         self.progress = Gtk.ProgressBar(show_text=True, visible=False)
         box.append(self.progress)
 
-        self.status_label = Gtk.Label(wrap=True, justify=Gtk.Justification.CENTER)
+        self.status_label = Gtk.Label(
+            wrap=True, justify=Gtk.Justification.CENTER, visible=False
+        )
         self.status_label.add_css_class("dim-label")
         box.append(self.status_label)
         return box
 
     # --------------------------------------------------------------- yardım --
+
+    def _fit_to_content(self) -> bool:
+        """Pencereyi içeriğin doğal yüksekliğine uydur.
+
+        Pi paneli açılıp kapandığında içerik boyu ciddi şekilde değişiyor;
+        bu çağrılmazsa panel açılınca pencere büyümüyor ve ayarlar kırpılıyor.
+        Kullanıcı pencereyi kendi büyüttüyse karışma.
+        """
+        if not self.is_maximized() and not self.is_fullscreen():
+            self.set_default_size(self.get_width() or 620, -1)
+        return False
 
     def notify_user(self, message: str, style: str = "") -> None:
         self.banner.set_title(message)
@@ -204,6 +230,7 @@ class KalipWindow(Adw.ApplicationWindow):
 
     def set_status(self, message: str) -> None:
         self.status_label.set_text(message)
+        self.status_label.set_visible(bool(message))
 
     def _set_busy(self, busy: bool) -> None:
         self._busy = busy
@@ -318,6 +345,7 @@ class KalipWindow(Adw.ApplicationWindow):
         if probed.is_pi_image and not self.hostname_row.get_text():
             self.username_row.set_text(GLib.get_user_name() or "")
         self._update_ready()
+        GLib.idle_add(self._fit_to_content)  # yerleşim oturduktan sonra
         return False
 
     # ------------------------------------------------------------------ URL --

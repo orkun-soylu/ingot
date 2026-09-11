@@ -1,3 +1,15 @@
+kalip (1.0.2-1) unstable; urgency=medium
+
+  * Yaz dugmesinin altindaki genis bosluk giderildi: pencere sabit 760px
+    yerine icerigin dogal yuksekliginde aciliyor.
+  * Eylem alani (Yaz / Iptal / ilerleme / durum) alt cubuga tasindi; icerik
+    tastiginda buton kaydirilmadan erisilebilir kaliyor.
+  * Pi paneli acilip kapandiginda pencere yeniden icerige uyduruluyor;
+    onceden panel aciliyor ama pencere buyumedigi icin ayarlar kirpiliyordu.
+  * Bos durum metni artik satir yer kaplamiyor.
+
+ -- Orkun Soylu <103385766+orkun-soylu@users.noreply.github.com>  Fri, 11 Sep 2026 23:20:00 +0100
+
 kalip (1.0.1-1) unstable; urgency=medium
 
   * Arayuzden "dahili diskleri de goster" anahtari kaldirildi; yalnizca
