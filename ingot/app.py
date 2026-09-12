@@ -1,8 +1,9 @@
-"""Uygulama girişi."""
+"""Application entry point."""
 
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import gi
 
@@ -12,19 +13,19 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio  # noqa: E402
 
 from . import __version__
-from .ui.window import KalipWindow
+from .ui.window import IngotWindow
 
-APP_ID = "me.soylu.kalip"
+APP_ID = "me.soylu.ingot"
 
 
-class KalipApplication(Adw.Application):
+class IngotApplication(Adw.Application):
     def __init__(self) -> None:
         super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.HANDLES_OPEN)
-        self.window: KalipWindow | None = None
+        self.window: IngotWindow | None = None
 
     def do_activate(self) -> None:
         if self.window is None:
-            self.window = KalipWindow(self)
+            self.window = IngotWindow(self)
         self.window.present()
 
     def do_open(self, files, n_files, hint) -> None:
@@ -33,8 +34,6 @@ class KalipApplication(Adw.Application):
         for gfile in files:
             path = gfile.get_path()
             if path:
-                from pathlib import Path
-
                 self.window.load_source(Path(path))
                 break
 
@@ -42,6 +41,6 @@ class KalipApplication(Adw.Application):
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv if argv is None else argv
     if "--version" in argv:
-        print(f"kalip {__version__}")
+        print(f"ingot {__version__}")
         return 0
-    return KalipApplication().run(argv)
+    return IngotApplication().run(argv)

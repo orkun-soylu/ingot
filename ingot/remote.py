@@ -1,14 +1,14 @@
-"""URL'den imaj: önce sorgula (Proxmox'un 'Download from URL'ü gibi), sonra indir.
+"""Images from a URL: query first (like Proxmox's "Download from URL"), then download.
 
-Her şey curl ile. İlerleme, curl'ün çıktısını ayrıştırarak değil hedef
-dosyanın boyutunu yoklayarak ölçülür -- format değişikliğine dayanıklı.
+Everything goes through curl. Progress is measured by polling the size of the
+destination file rather than parsing curl's output, which survives format
+changes.
 """
 
 from __future__ import annotations
 
 import os
 import re
-import shlex
 import subprocess
 import threading
 import time
@@ -16,14 +16,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+from . import __version__
 from .devices import human_bytes
+from .i18n import _
 from .source import SUPPORTED_SUFFIXES
 
-USER_AGENT = "kalip/0.1 (+https://github.com/orkun-soylu/ingot)"
-CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "kalip"
+USER_AGENT = f"ingot/{__version__} (+https://github.com/orkun-soylu/ingot)"
+CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "ingot"
+# Where downloads lived before the project was renamed from kalip.
+LEGACY_CACHE_DIR = CACHE_DIR.parent / "kalip"
 
 _DISPOSITION = re.compile(r'filename\*?=(?:UTF-8\'\')?"?([^";]+)"?', re.IGNORECASE)
 _CONTENT_RANGE = re.compile(r"bytes\s+\d+-\d+/(\d+)", re.IGNORECASE)
+_MARKER = "__INGOT__"
 
 
 class RemoteError(RuntimeError):
@@ -54,16 +59,17 @@ class RemoteInfo:
         if self.content_type:
             bits.append(self.content_type)
         if self.resumable:
-            bits.append("devam ettirilebilir")
+            bits.append(_("resumable"))
         return " · ".join(bits)
 
     @property
     def warning(self) -> str:
         if not self.supported:
-            exts = ", ".join(SUPPORTED_SUFFIXES)
-            return f"Uzantı tanıdık değil (beklenen: {exts}). Yine de yazabilirsin."
+            return _(
+                "Unrecognised file extension (expected {extensions}). You can still write it."
+            ).format(extensions=", ".join(SUPPORTED_SUFFIXES))
         if self.size is None:
-            return "Sunucu boyut bildirmedi — ilerleme çubuğu belirsiz olacak."
+            return _("The server did not report a size — progress will be indeterminate.")
         return ""
 
 
@@ -110,31 +116,36 @@ def _curl(args: list[str], timeout: int) -> subprocess.CompletedProcess:
             capture_output=True,
             text=True,
         )
-    except OSError as exc:  # curl yok
-        raise RemoteError(f"curl çalıştırılamadı: {exc}") from exc
+    except OSError as exc:  # curl missing
+        raise RemoteError(_("Could not run curl: {error}").format(error=exc)) from exc
 
 
-def query(url: str, timeout: int = 25) -> RemoteInfo:
-    """HEAD ile sorgula; sunucu HEAD kabul etmezse 1 baytlık range GET'e düş."""
-    url = url.strip()
-    if not url:
-        raise RemoteError("URL boş.")
-    if urlparse(url).scheme not in ("http", "https"):
-        raise RemoteError("Yalnızca http/https destekleniyor.")
-
-    marker = "__KALIP__"
-    fmt = f"\\n{marker}\\n%{{url_effective}}\\n%{{http_code}}\\n"
-    proc = _curl(["-I", "-L", "-D", "-", "-o", os.devnull, "-w", fmt, "--", url], timeout)
-    if proc.returncode != 0:
-        raise RemoteError(proc.stderr.strip() or f"curl {proc.returncode} ile çıktı.")
-
-    raw, _, tail = proc.stdout.rpartition(marker)
+def _parse_tail(stdout: str, url: str) -> tuple[list[str], str, int]:
+    raw, _sep, tail = stdout.rpartition(_MARKER)
     tail_lines = [line for line in tail.splitlines() if line.strip()]
     effective_url = tail_lines[0] if tail_lines else url
     status = int(tail_lines[1]) if len(tail_lines) > 1 and tail_lines[1].isdigit() else 0
-
     blocks = _split_header_blocks(raw)
-    last = blocks[-1] if blocks else []
+    return (blocks[-1] if blocks else []), effective_url, status
+
+
+def query(url: str, timeout: int = 25) -> RemoteInfo:
+    """Query with HEAD; fall back to a one-byte range GET if HEAD is refused."""
+    url = url.strip()
+    if not url:
+        raise RemoteError(_("The URL is empty."))
+    if urlparse(url).scheme not in ("http", "https"):
+        raise RemoteError(_("Only http and https URLs are supported."))
+
+    fmt = f"\\n{_MARKER}\\n%{{url_effective}}\\n%{{http_code}}\\n"
+    proc = _curl(["-I", "-L", "-D", "-", "-o", os.devnull, "-w", fmt, "--", url], timeout)
+    if proc.returncode != 0:
+        raise RemoteError(
+            proc.stderr.strip()
+            or _("curl exited with status {code}.").format(code=proc.returncode)
+        )
+
+    last, effective_url, status = _parse_tail(proc.stdout, url)
     length = _header(last, "content-length")
     size = int(length) if length and length.isdigit() else None
 
@@ -144,7 +155,7 @@ def query(url: str, timeout: int = 25) -> RemoteInfo:
             return info
 
     if status >= 400:
-        raise RemoteError(f"Sunucu HTTP {status} döndü.")
+        raise RemoteError(_("The server returned HTTP {status}.").format(status=status))
 
     return RemoteInfo(
         url=url,
@@ -158,24 +169,18 @@ def query(url: str, timeout: int = 25) -> RemoteInfo:
 
 
 def _query_via_range(url: str, timeout: int) -> RemoteInfo | None:
-    """HEAD'i reddeden sunucular için: ilk baytı iste, Content-Range'den boyutu oku."""
-    marker = "__KALIP__"
-    fmt = f"\\n{marker}\\n%{{url_effective}}\\n%{{http_code}}\\n"
+    """For servers that refuse HEAD: ask for the first byte, read Content-Range."""
+    fmt = f"\\n{_MARKER}\\n%{{url_effective}}\\n%{{http_code}}\\n"
     proc = _curl(
         ["-L", "-r", "0-0", "-D", "-", "-o", os.devnull, "-w", fmt, "--", url], timeout
     )
     if proc.returncode != 0:
         return None
 
-    raw, _, tail = proc.stdout.rpartition(marker)
-    tail_lines = [line for line in tail.splitlines() if line.strip()]
-    effective_url = tail_lines[0] if tail_lines else url
-    status = int(tail_lines[1]) if len(tail_lines) > 1 and tail_lines[1].isdigit() else 0
+    last, effective_url, status = _parse_tail(proc.stdout, url)
     if status >= 400:
         return None
 
-    blocks = _split_header_blocks(raw)
-    last = blocks[-1] if blocks else []
     size = None
     content_range = _header(last, "content-range")
     if content_range:
@@ -195,6 +200,11 @@ def _query_via_range(url: str, timeout: int) -> RemoteInfo | None:
 
 
 def cached_path(info: RemoteInfo) -> Path:
+    if not CACHE_DIR.exists() and LEGACY_CACHE_DIR.is_dir():
+        try:
+            LEGACY_CACHE_DIR.rename(CACHE_DIR)  # keep images fetched before the rename
+        except OSError:
+            pass
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     return CACHE_DIR / info.filename
 
@@ -205,9 +215,10 @@ def download(
     on_progress=None,
     cancel: threading.Event | None = None,
 ) -> Path:
-    """curl ile indir. İlerleme hedef dosyanın boyutundan okunur.
+    """Download with curl. Progress comes from the destination file's size.
 
-    Dosya zaten tam boyuttaysa indirme atlanır (yeniden yazarken tekrar inmesin).
+    A file that is already complete is not fetched again, so writing the same
+    image twice does not download it twice.
     """
     dest = dest or cached_path(info)
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -234,7 +245,7 @@ def download(
                     proc.wait(timeout=5)
                 except subprocess.TimeoutExpired:
                     proc.kill()
-                raise RemoteError("İndirme iptal edildi.")
+                raise RemoteError(_("Download cancelled."))
             if on_progress:
                 try:
                     on_progress(dest.stat().st_size, info.size)
@@ -247,7 +258,9 @@ def download(
 
     if proc.returncode != 0:
         stderr = (proc.stderr.read() if proc.stderr else "").strip()
-        raise RemoteError(stderr or f"curl {proc.returncode} ile çıktı: {shlex.join(args)}")
+        raise RemoteError(
+            stderr or _("curl exited with status {code}.").format(code=proc.returncode)
+        )
 
     if on_progress:
         on_progress(dest.stat().st_size, info.size)

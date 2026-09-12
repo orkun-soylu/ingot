@@ -1,0 +1,416 @@
+# Turkish translation for Ingot.
+# Copyright (C) 2026 Orkun Soylu
+# This file is distributed under the same license as the ingot package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: ingot 1.1.0\n"
+"Report-Msgid-Bugs-To: 103385766+orkun-soylu@users.noreply.github.com\n"
+"POT-Creation-Date: 2026-09-12 00:30+0100\n"
+"PO-Revision-Date: 2026-09-12 00:30+0100\n"
+"Last-Translator: Orkun Soylu <103385766+orkun-soylu@users.noreply.github.com>\n"
+"Language-Team: Turkish\n"
+"Language: tr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: ingot/devices.py
+msgid "Unknown device"
+msgstr "Bilinmeyen aygıt"
+
+msgid "removable"
+msgstr "çıkarılabilir"
+
+msgid "internal"
+msgstr "dahili"
+
+msgid "mounted: {mounts}"
+msgstr "bağlı: {mounts}"
+
+msgid "read-only"
+msgstr "salt okunur"
+
+msgid "unknown"
+msgstr "bilinmiyor"
+
+#: ingot/source.py
+msgid "raw image"
+msgstr "ham imaj"
+
+#: ingot/remote.py
+msgid "resumable"
+msgstr "devam ettirilebilir"
+
+msgid "Unrecognised file extension (expected {extensions}). You can still write it."
+msgstr "Dosya uzantısı tanınmadı (beklenen: {extensions}). Yine de yazabilirsin."
+
+msgid "The server did not report a size — progress will be indeterminate."
+msgstr "Sunucu boyut bildirmedi — ilerleme çubuğu belirsiz olacak."
+
+msgid "Could not run curl: {error}"
+msgstr "curl çalıştırılamadı: {error}"
+
+msgid "The URL is empty."
+msgstr "URL boş."
+
+msgid "Only http and https URLs are supported."
+msgstr "Yalnızca http ve https adresleri destekleniyor."
+
+msgid "curl exited with status {code}."
+msgstr "curl {code} koduyla çıktı."
+
+msgid "The server returned HTTP {status}."
+msgstr "Sunucu HTTP {status} döndürdü."
+
+msgid "Download cancelled."
+msgstr "İndirme iptal edildi."
+
+#: ingot/picfg.py
+msgid "The password cannot be empty."
+msgstr "Parola boş olamaz."
+
+msgid "openssl passwd failed: {error}"
+msgstr "openssl passwd başarısız oldu: {error}"
+
+msgid "openssl did not produce the expected SHA-512 hash."
+msgstr "openssl beklenen SHA-512 hash'ini üretmedi."
+
+msgid "A hostname is required."
+msgstr "Hostname gerekli."
+
+msgid ""
+"The hostname may contain only letters, digits and hyphens, and cannot start "
+"or end with a hyphen."
+msgstr ""
+"Hostname yalnızca harf, rakam ve tire içerebilir; tireyle başlayıp bitemez."
+
+msgid "A username is required."
+msgstr "Kullanıcı adı gerekli."
+
+msgid ""
+"The username must start with a lowercase letter or an underscore and contain "
+"only lowercase letters, digits, underscores and hyphens."
+msgstr ""
+"Kullanıcı adı küçük harf veya alt çizgiyle başlamalı; yalnızca küçük harf, "
+"rakam, alt çizgi ve tire içerebilir."
+
+msgid "No password has been set."
+msgstr "Parola ayarlanmadı."
+
+msgid "Invalid SSH public key: {key}"
+msgstr "Geçersiz SSH açık anahtarı: {key}"
+
+msgid "A country code is required for Wi-Fi (for example GB)."
+msgstr "WiFi için ülke kodu gerekli (ör. TR)."
+
+msgid ""
+"Password login over SSH is off and no public key is set — you would be "
+"locked out."
+msgstr ""
+"Parola ile SSH girişi kapalı ve açık anahtar yok — makineye giremezsin."
+
+#: ingot/messages.py
+msgid "Checking the target device"
+msgstr "Hedef aygıt denetleniyor"
+
+msgid "Writing the image"
+msgstr "İmaj yazılıyor"
+
+msgid "Flushing data to the device"
+msgstr "Veri aygıta boşaltılıyor"
+
+msgid "Verifying"
+msgstr "Doğrulanıyor"
+
+msgid "Verification passed"
+msgstr "Doğrulama başarılı"
+
+msgid "Rereading the partition table"
+msgstr "Bölüm tablosu yeniden okunuyor"
+
+msgid "Writing custom.toml to the boot partition"
+msgstr "custom.toml önyükleme bölümüne yazılıyor"
+
+msgid "Done"
+msgstr "Tamamlandı"
+
+msgid "The helper must run as root; it is started through pkexec."
+msgstr "Yardımcı root olarak çalışmalı; pkexec üzerinden başlatılır."
+
+msgid "Cannot read the image: {path}"
+msgstr "İmaj okunamıyor: {path}"
+
+msgid "Cannot read custom.toml: {path}"
+msgstr "custom.toml okunamıyor: {path}"
+
+msgid "{device} does not exist."
+msgstr "{device} yok."
+
+msgid "{device} is not a whole block device."
+msgstr "{device} bütün bir blok aygıtı değil."
+
+msgid "{device} is a virtual device and cannot be written to."
+msgstr "{device} sanal bir aygıt, üzerine yazılamaz."
+
+msgid "{device} is read-only."
+msgstr "{device} salt okunur."
+
+msgid "{device} is a system disk ({mounts}) — refusing to write."
+msgstr "{device} bir sistem diski ({mounts}) — yazma reddedildi."
+
+msgid "The target has active swap — refusing to write."
+msgstr "Hedefte etkin swap var — yazma reddedildi."
+
+msgid "Some partitions are still mounted: {mounts}"
+msgstr "Hâlâ bağlı bölümler var: {mounts}"
+
+msgid "The image is larger than the device: {image} > {capacity}."
+msgstr "İmaj aygıttan büyük: {image} > {capacity}."
+
+msgid "The image outgrew the device's capacity; writing stopped."
+msgstr "İmaj aygıtın kapasitesini aştı; yazma durduruldu."
+
+msgid "Cancelled — the data on the media is incomplete."
+msgstr "İptal edildi — medyadaki veri yarım kaldı."
+
+msgid "The zip archive must contain exactly one image file."
+msgstr "Zip arşivi tam olarak bir imaj dosyası içermeli."
+
+msgid "zstdcat was not found. Is the zstd package installed?"
+msgstr "zstdcat bulunamadı. zstd paketi kurulu mu?"
+
+msgid "Unknown compression: {name}"
+msgstr "Bilinmeyen sıkıştırma: {name}"
+
+msgid "The device ended sooner than expected."
+msgstr "Aygıt beklenenden erken bitti."
+
+msgid ""
+"Verification FAILED — the data on the device does not match the image. The "
+"media may be faulty."
+msgstr ""
+"Doğrulama BAŞARISIZ — aygıttaki veri imajla eşleşmiyor. Medya arızalı "
+"olabilir."
+
+msgid "{device} is busy — another program may be using it."
+msgstr "{device} meşgul — başka bir program kullanıyor olabilir."
+
+msgid "{error} ({device})"
+msgstr "{error} ({device})"
+
+msgid "Interrupted."
+msgstr "Kesildi."
+
+msgid "no FAT partition was found"
+msgstr "FAT bölümü bulunamadı"
+
+msgid "the boot partition could not be mounted"
+msgstr "önyükleme bölümü bağlanamadı"
+
+msgid "the boot partition does not look like Raspberry Pi OS"
+msgstr "önyükleme bölümü Raspberry Pi OS'e benzemiyor"
+
+msgid "Writing"
+msgstr "Yazılıyor"
+
+msgid "Downloading"
+msgstr "İndiriliyor"
+
+msgid "Unmounting {count} mounted partition"
+msgid_plural "Unmounting {count} mounted partitions"
+msgstr[0] "{count} bağlı bölüm ayrılıyor"
+msgstr[1] "{count} bağlı bölüm ayrılıyor"
+
+#: ingot/privileged.py
+msgid ""
+"The privileged helper was not found — the package may be incompletely "
+"installed. Reinstall it with: sudo apt install --reinstall ingot"
+msgstr ""
+"Ayrıcalıklı yardımcı bulunamadı — paket eksik kurulmuş olabilir. Yeniden "
+"kur: sudo apt install --reinstall ingot"
+
+msgid "pkexec is not installed. Install it with: sudo apt install pkexec polkitd"
+msgstr "pkexec kurulu değil. Kur: sudo apt install pkexec polkitd"
+
+msgid "Could not start pkexec: {error}"
+msgstr "pkexec başlatılamadı: {error}"
+
+msgid "Authorization was cancelled or denied."
+msgstr "Yetkilendirme iptal edildi veya reddedildi."
+
+msgid "pkexec could not run the helper."
+msgstr "pkexec yardımcıyı çalıştıramadı."
+
+msgid "The helper exited with status {code}."
+msgstr "Yardımcı {code} koduyla çıktı."
+
+#: ingot/ui/window.py
+msgid "Disk image writer"
+msgstr "Disk imajı yazıcı"
+
+msgid "Source"
+msgstr "Kaynak"
+
+msgid "Image file"
+msgstr "İmaj dosyası"
+
+msgid "None selected"
+msgstr "Seçilmedi"
+
+msgid "…or a URL"
+msgstr "…veya bir URL"
+
+msgid "Query"
+msgstr "Sorgula"
+
+msgid "Download"
+msgstr "İndir"
+
+msgid "Target"
+msgstr "Hedef"
+
+msgid "Refresh the device list"
+msgstr "Aygıt listesini yenile"
+
+msgid "Device"
+msgstr "Aygıt"
+
+msgid "Applied on first boot through bootfs/custom.toml."
+msgstr "İlk açılışta bootfs/custom.toml üzerinden uygulanır."
+
+msgid "Hostname"
+msgstr "Hostname"
+
+msgid "Username"
+msgstr "Kullanıcı adı"
+
+msgid "Password"
+msgstr "Parola"
+
+msgid "No key"
+msgstr "Anahtar yok"
+
+msgid "SSH public key"
+msgstr "SSH açık anahtarı"
+
+msgid "Password login over SSH"
+msgstr "Parola ile SSH girişi"
+
+msgid "Keep this on if the machine will be enrolled over SSH with a password."
+msgstr "Makine SSH üzerinden parolayla kaydedilecekse açık bırak."
+
+msgid "Wi-Fi"
+msgstr "WiFi"
+
+msgid "Leave empty to skip wireless setup"
+msgstr "Boş bırakılırsa kablosuz ayarlanmaz"
+
+msgid "Wi-Fi password"
+msgstr "WiFi parolası"
+
+msgid "Country code"
+msgstr "Ülke kodu"
+
+msgid "Locale"
+msgstr "Yerel ayarlar"
+
+msgid "Keyboard layout"
+msgstr "Klavye düzeni"
+
+msgid "Time zone"
+msgstr "Saat dilimi"
+
+msgid "Options"
+msgstr "Seçenekler"
+
+msgid "Verify after writing"
+msgstr "Yazdıktan sonra doğrula"
+
+msgid "Reads the data back and compares SHA-256. Roughly doubles the time."
+msgstr "Veriyi geri okuyup SHA-256 karşılaştırır. Süreyi yaklaşık iki katına çıkarır."
+
+msgid "Write"
+msgstr "Yaz"
+
+msgid "Cancel"
+msgstr "İptal"
+
+msgid "Could not list devices: {error}"
+msgstr "Aygıtlar listelenemedi: {error}"
+
+msgid "No writable device — insert a USB drive or a memory card."
+msgstr "Yazılabilir aygıt yok — USB bellek veya hafıza kartı tak."
+
+msgid "Choose an image"
+msgstr "İmaj seç"
+
+msgid "Disk images"
+msgstr "Disk imajları"
+
+msgid "All files"
+msgstr "Tüm dosyalar"
+
+msgid "Inspecting the image…"
+msgstr "İmaj inceleniyor…"
+
+msgid "Could not read the image: {error}"
+msgstr "İmaj okunamadı: {error}"
+
+msgid "{size} decompressed"
+msgstr "açılmış {size}"
+
+msgid "Raspberry Pi OS detected"
+msgstr "Raspberry Pi OS algılandı"
+
+msgid "Querying the URL…"
+msgstr "URL sorgulanıyor…"
+
+msgid "Query failed: {error}"
+msgstr "Sorgulanamadı: {error}"
+
+msgid "Downloading {name}…"
+msgstr "{name} indiriliyor…"
+
+msgid "Download failed: {error}"
+msgstr "İndirme başarısız: {error}"
+
+msgid "The Raspberry Pi settings are incomplete: {error}"
+msgstr "Raspberry Pi ayarları eksik: {error}"
+
+msgid "Image: {image}"
+msgstr "İmaj: {image}"
+
+msgid "All existing data on the device will be permanently lost."
+msgstr "Aygıttaki mevcut verinin tamamı kalıcı olarak kaybolacak."
+
+msgid "Erase everything on this device?"
+msgstr "Bu aygıttaki her şey silinsin mi?"
+
+msgid "Could not write custom.toml: {error}"
+msgstr "custom.toml yazılamadı: {error}"
+
+msgid "Waiting for authorization…"
+msgstr "Yetkilendirme bekleniyor…"
+
+msgid "Preparing"
+msgstr "Hazırlanıyor"
+
+msgid "Cancelling…"
+msgstr "İptal ediliyor…"
+
+msgid "custom.toml was written to the boot partition."
+msgstr "custom.toml önyükleme bölümüne yazıldı."
+
+msgid ""
+"The Raspberry Pi settings could not be applied ({reason}) — the image was "
+"still written."
+msgstr ""
+"Raspberry Pi ayarları uygulanamadı ({reason}) — imaj yine de yazıldı."
+
+msgid "Done — {size} written and verified. You can remove the device."
+msgstr "Bitti — {size} yazıldı ve doğrulandı. Aygıtı çıkarabilirsin."
+
+msgid "Done — {size} written. You can remove the device."
+msgstr "Bitti — {size} yazıldı. Aygıtı çıkarabilirsin."

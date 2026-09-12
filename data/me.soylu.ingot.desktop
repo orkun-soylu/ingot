@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=Ingot
+GenericName=Disk Image Writer
+GenericName[tr]=Disk İmajı Yazıcı
+Comment=Write Linux ISO and Raspberry Pi OS images to USB drives and memory cards
+Comment[tr]=Linux ISO ve Raspberry Pi OS imajlarını USB belleğe ve hafıza kartına yazar
+Exec=ingot %f
+Icon=me.soylu.ingot
+Terminal=false
+Categories=System;Utility;
+Keywords=usb;iso;image;sd;raspberry;flash;writer;
+Keywords[tr]=usb;iso;imaj;sd;raspberry;yaz;yazıcı;
+MimeType=application/x-cd-image;application/x-raw-disk-image;
+StartupNotify=true

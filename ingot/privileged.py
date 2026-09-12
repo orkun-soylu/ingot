@@ -1,24 +1,29 @@
-"""pkexec köprüsü.
+"""pkexec bridge.
 
-Arayüz hiçbir zaman root olmaz; yalnızca bu modülün başlattığı helper olur.
-Parola kutusunu kullanıcının kendi polkit ajanı gösterir -- bu yüzden Wayland'de
-sorun çıkmaz (rpi-imager'ın tüm GUI'yi root'a taşıyıp takıldığı yer burasıydı).
+The interface never becomes root; only the helper this module starts does.
+The password prompt comes from the user's own polkit agent, which is why this
+works on Wayland (rpi-imager moves its whole interface to root and fails
+exactly there).
 """
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .i18n import _
+from .messages import describe_error, describe_status
+
 HELPER_CANDIDATES = (
-    Path("/usr/libexec/kalip/kalip-helper"),          # .deb ile kurulan
-    Path(__file__).resolve().parent.parent / "helper" / "kalip-helper",  # depodan calistirirken
+    Path("/usr/libexec/ingot/ingot-helper"),  # installed by the package
+    Path(__file__).resolve().parent.parent / "helper" / "ingot-helper",  # source checkout
 )
 
-# pkexec'in iptal ettiği / yetkilendirmenin reddedildiği çıkış kodu
+# pkexec exit codes: authorization dismissed or denied / could not run the program
 PKEXEC_NOT_AUTHORIZED = 126
 PKEXEC_FAILED = 127
 
@@ -32,8 +37,10 @@ def helper_path() -> Path:
         if candidate.is_file():
             return candidate
     raise PrivilegeError(
-        "kalip-helper bulunamadı — paket eksik kurulmuş olabilir. "
-        "Yeniden kur: sudo apt install --reinstall kalip"
+        _(
+            "The privileged helper was not found — the package may be incompletely "
+            "installed. Reinstall it with: sudo apt install --reinstall ingot"
+        )
     )
 
 
@@ -41,7 +48,7 @@ def ensure_pkexec() -> str:
     path = shutil.which("pkexec")
     if path is None:
         raise PrivilegeError(
-            "pkexec yok. Kur: sudo apt install pkexec polkitd"
+            _("pkexec is not installed. Install it with: sudo apt install pkexec polkitd")
         )
     return path
 
@@ -77,12 +84,12 @@ class WriteOutcome:
 
 
 class WriteJob:
-    """Helper'ı ayrı bir iş parçacığında çalıştırır, olayları geri çağırır.
+    """Run the helper on a worker thread and report events back.
 
     on_event(kind, *payload):
-        "status",   mesaj
-        "progress", asama, yapilan, toplam      (toplam 0 = bilinmiyor)
-        "fact",     anahtar, deger
+        "status",   translated message
+        "progress", stage, done, total      (total 0 = unknown)
+        "fact",     key, value
         "finished", WriteOutcome
     """
 
@@ -130,12 +137,15 @@ class WriteJob:
                 bufsize=1,
             )
         except OSError as exc:
-            self._on_event("finished", WriteOutcome(ok=False, error=f"pkexec başlatılamadı: {exc}"))
+            self._on_event(
+                "finished",
+                WriteOutcome(ok=False, error=_("Could not start pkexec: {error}").format(error=exc)),
+            )
             return
 
         with self._lock:
             self._proc = proc
-            if self._cancelled:  # start ile cancel yarıştıysa
+            if self._cancelled:  # cancel raced with start
                 try:
                     proc.stdin.write("CANCEL\n")
                     proc.stdin.flush()
@@ -148,22 +158,26 @@ class WriteJob:
             line = line.rstrip("\n")
             if not line:
                 continue
-            kind, _, rest = line.partition(" ")
+            kind, _sep, rest = line.partition(" ")
             if kind == "S":
-                self._on_event("status", rest)
+                code, _sep, argument = rest.partition(" ")
+                self._on_event("status", describe_status(code, argument))
             elif kind == "P":
                 parts = rest.split()
                 if len(parts) == 3:
                     stage, done, total = parts
                     self._on_event("progress", stage, int(done), int(total))
             elif kind == "R":
-                key, _, value = rest.partition("=")
+                key, _sep, value = rest.partition("=")
                 facts[key] = value
                 self._on_event("fact", key, value)
             elif kind == "E":
-                error = rest
-            elif kind == "D":
-                pass
+                code, _sep, payload = rest.partition(" ")
+                try:
+                    params = json.loads(payload) if payload else {}
+                except ValueError:
+                    params = {}
+                error = describe_error(code, params)
 
         proc.wait()
         stderr = (proc.stderr.read() if proc.stderr else "").strip()
@@ -180,9 +194,11 @@ class WriteJob:
 
         if not error:
             if proc.returncode == PKEXEC_NOT_AUTHORIZED:
-                error = "Yetkilendirme iptal edildi veya reddedildi."
+                error = _("Authorization was cancelled or denied.")
             elif proc.returncode == PKEXEC_FAILED:
-                error = stderr or "pkexec helper'ı çalıştıramadı."
+                error = stderr or _("pkexec could not run the helper.")
             else:
-                error = stderr or f"Helper {proc.returncode} ile çıktı."
+                error = stderr or _("The helper exited with status {code}.").format(
+                    code=proc.returncode
+                )
         self._on_event("finished", WriteOutcome(ok=False, error=error, facts=facts))

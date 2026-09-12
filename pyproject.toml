@@ -3,16 +3,16 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "kalip"
-version = "1.0.2"
-description = "Linux icin imaj yazici"
+name = "ingot"
+version = "1.1.0"
+description = "Disk image writer for USB drives and memory cards"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [{ name = "Orkun Soylu", email = "103385766+orkun-soylu@users.noreply.github.com" }]
 
 [project.scripts]
-kalip = "kalip.app:main"
+ingot = "ingot.app:main"
 
 [tool.setuptools]
-packages = ["kalip", "kalip.ui"]
+packages = ["ingot", "ingot.ui"]

@@ -1,15 +1,16 @@
-.TH KALIP 1 "2026-09-11" "kalip 1.0.2" "User Commands"
+.TH INGOT 1 "2026-09-12" "ingot 1.1.0" "User Commands"
 .SH NAME
-kalip \- write disk images to USB, SD and NVMe media
+ingot \- write disk images to USB drives and memory cards
 .SH SYNOPSIS
-.B kalip
+.B ingot
 .RI [ IMAGE ]
 .br
-.B kalip
+.B ingot
 .B \-\-version
 .SH DESCRIPTION
-.B kalip
-writes Linux ISO images and Raspberry Pi OS images to storage media. If
+.B ingot
+writes Linux ISO images and Raspberry Pi OS images to removable media,
+including NVMe and SATA drives in USB enclosures. If
 .I IMAGE
 is given it is opened on startup; otherwise a file can be chosen from the
 interface or fetched from a URL.
@@ -22,7 +23,7 @@ file's magic bytes, not its extension.
 A URL is queried before anything is transferred: the redirect chain is
 followed and the resulting file name, size and content type are reported.
 Downloads are cached under
-.I ~/.cache/kalip
+.I ~/.cache/ingot
 so writing the same image again does not fetch it twice.
 .SH RASPBERRY PI OS
 When the image's partition table matches a Raspberry Pi OS layout \(en a FAT
@@ -31,13 +32,15 @@ be written to
 .I custom.toml
 on the boot partition: hostname, user account and password, SSH public keys and
 whether password login is permitted, wireless network, keyboard layout and time
-zone. This applies to Raspberry Pi OS bookworm and later. Static addressing and
-multiple wireless networks are not expressible in that format.
+zone. Keyboard layout, time zone and Wi-Fi country default to the settings of
+the machine doing the writing. This applies to Raspberry Pi OS bookworm and
+later. Static addressing and multiple wireless networks are not expressible in
+that format.
 .SH PRIVILEGES
 The interface never runs as root. Writing is performed by
-.I /usr/libexec/kalip/kalip-helper
+.I /usr/libexec/ingot/ingot-helper
 which is elevated through polkit under the action
-.BR me.soylu.kalip.write .
+.BR me.soylu.ingot.write .
 Because the helper has no graphical interface of its own, this works in Wayland
 sessions, where applications that elevate their entire interface cannot connect
 to the display.
@@ -56,18 +59,29 @@ SHA\-256.
 is called with
 .B POSIX_FADV_DONTNEED
 first, so the comparison reads the device rather than the page cache.
+.SH ENVIRONMENT
+.TP
+.BR LANGUAGE ", " LC_ALL ", " LC_MESSAGES ", " LANG
+Select the interface language. English is the source language; a Turkish
+translation is included.
+.TP
+.B INGOT_LOCALEDIR
+Look for translation catalogues in this directory instead of the system
+locale directory.
 .SH FILES
 .TP
-.I ~/.cache/kalip
+.I ~/.cache/ingot
 Downloaded images.
 .TP
-.I /usr/libexec/kalip/kalip-helper
+.I /usr/libexec/ingot/ingot-helper
 Privileged helper. Can be run directly under
 .BR sudo (8)
 for debugging; see
 .BR \-\-help .
+Its standard output is a line protocol; human-readable errors go to standard
+error.
 .TP
-.I /usr/share/polkit-1/actions/me.soylu.kalip.policy
+.I /usr/share/polkit-1/actions/me.soylu.ingot.policy
 polkit action definition.
 .SH EXIT STATUS
 .TP

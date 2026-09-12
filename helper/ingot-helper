@@ -1,23 +1,30 @@
 #!/usr/bin/env python3
-"""kalip'in ayrıcalıklı işçisi. pkexec ile root olarak çağrılır.
+"""Ingot's privileged helper, started as root through pkexec.
 
-Tek başına durur (kalip paketini import etmez) çünkü /usr/local/libexec altına
-root'a ait olarak kurulur.
+It stands alone (it does not import the ingot package) because it is installed
+under /usr/libexec, owned by root.
 
-GUI'den gelen hiçbir iddiaya güvenilmez: hedef cihaz burada yeniden doğrulanır.
-Asıl güvenlik kapısı budur, arayüzdeki filtreler yalnızca kullanıcı deneyimidir.
+Nothing the interface claims is trusted: the target device is re-validated
+here. This is the real safety gate; the interface's filters only shape the
+user experience.
 
-Protokol -- stdout, satır başına bir olay:
-    S <mesaj>                 durum
-    P <asama> <yapilan> <toplam>   ilerleme (toplam 0 = bilinmiyor)
-    R <anahtar>=<deger>       sonuç bilgisi
-    E <mesaj>                 hata
-    D                         bitti
+The helper never produces interface text. pkexec does not carry the session's
+language into it, so it emits stable codes that the interface translates
+(ingot/messages.py). English messages go to stderr for people running it by
+hand.
+
+Protocol -- stdout, one event per line:
+    S <code> [argument]           status
+    P <stage> <done> <total>      progress (total 0 = unknown)
+    R <key>=<value>               result fact
+    E <code> <json parameters>    error
+    D                             done
 """
 
 from __future__ import annotations
 
 import argparse
+import errno
 import fcntl
 import gzip
 import hashlib
@@ -25,8 +32,8 @@ import json
 import lzma
 import os
 import shutil
-import struct
 import stat
+import struct
 import subprocess
 import sys
 import tempfile
@@ -43,25 +50,34 @@ BLKRRPART = 0x125F
 PROTECTED_MOUNTS = frozenset(
     {"/", "/boot", "/boot/efi", "/boot/firmware", "/home", "/usr", "/var", "/nix", "[SWAP]"}
 )
-# Hiçbir koşulda imaj hedefi olamayacak aygıtlar. loop/md/dm burada YOK:
-# onlar meşru hedef olabilir (dosya destekli test, RAID/LVM üstüne ham yazma)
-# ve gerçek kapı zaten aşağıdaki bağlama noktası kontrolüdür. Arayüz bu
-# aygıtları yine de listelemez -- bkz. kalip/devices.py.
+# Devices that can never be an image target. loop/md/dm are deliberately
+# absent: they can be legitimate targets (file-backed testing, raw writes onto
+# RAID/LVM) and the real gate is the mount point check below. The interface
+# does not list them anyway -- see ingot/devices.py.
 VIRTUAL_PREFIXES = ("zram", "ram", "sr", "fd")
 
 PI_MARKERS = ("config.txt", "cmdline.txt")
 
-# lsblk bütün aygıtları böyle etiketler. loop dosya destekli olduğu için
-# meşru bir hedeftir (test ve imaj dosyasına yazma).
+# How lsblk labels whole devices. loop is file-backed and a legitimate target
+# (testing, writing into an image file).
 WHOLE_DEVICE_TYPES = ("disk", "loop")
 
 
 class HelperError(RuntimeError):
-    pass
+    """A failure reported to the interface as a stable code.
+
+    The message is English text for someone running the helper by hand; the
+    interface ignores it and translates the code instead.
+    """
+
+    def __init__(self, code: str, message: str, **params) -> None:
+        super().__init__(message)
+        self.code = code
+        self.params = params
 
 
-# İptal, sinyalle yapılamaz: süreç root, arayüz değil. Bunun yerine arayüz
-# stdin'e CANCEL yazar ya da boruyu kapatır.
+# Cancellation cannot use signals: the process is root and the interface is
+# not. The interface writes CANCEL to stdin or closes the pipe instead.
 _abort = threading.Event()
 
 
@@ -79,7 +95,7 @@ def _watch_for_cancel() -> None:
                 break
     except Exception:
         pass
-    _abort.set()  # EOF de iptal sayılır: arayüz öldüyse yazmaya devam etme
+    _abort.set()  # EOF counts too: if the interface died, stop writing
 
 
 def start_cancel_watch() -> None:
@@ -89,7 +105,7 @@ def start_cancel_watch() -> None:
 
 def check_abort() -> None:
     if _abort.is_set():
-        raise HelperError("İptal edildi — medyadaki veri yarım kaldı.")
+        raise HelperError("cancelled", "cancelled; the data on the media is incomplete")
 
 
 def emit(line: str) -> None:
@@ -97,8 +113,8 @@ def emit(line: str) -> None:
     sys.stdout.flush()
 
 
-def status(message: str) -> None:
-    emit("S " + message)
+def status(code: str, argument: str = "") -> None:
+    emit(f"S {code} {argument}".rstrip())
 
 
 def progress(stage: str, done: int, total: int | None) -> None:
@@ -109,8 +125,13 @@ def result(key: str, value) -> None:
     emit(f"R {key}={value}")
 
 
+def report_error(code: str, message: str, params: dict) -> None:
+    emit(f"E {code} {json.dumps(params, ensure_ascii=False, sort_keys=True)}")
+    print(f"ingot-helper: {message}", file=sys.stderr, flush=True)
+
+
 # --------------------------------------------------------------------------- #
-# Hedef doğrulama
+# Target validation
 # --------------------------------------------------------------------------- #
 
 def lsblk_tree() -> list[dict]:
@@ -135,25 +156,29 @@ def find_disk(device: str) -> dict:
             continue
         if os.path.realpath(node.get("path", "")) == real:
             return node
-    raise HelperError(f"{device} bütün bir blok aygıtı olarak bulunamadı.")
+    raise HelperError(
+        "not_whole_device", f"{device} is not a whole block device", device=device
+    )
 
 
 def assert_writable_target(device: str) -> dict:
     if not os.path.exists(device):
-        raise HelperError(f"{device} yok.")
+        raise HelperError("device_missing", f"{device} does not exist", device=device)
 
     node = find_disk(device)
-    name = node.get("name", "")
-    if name.startswith(VIRTUAL_PREFIXES):
-        raise HelperError(f"{device} sanal bir aygıt, hedef olamaz.")
+    if node.get("name", "").startswith(VIRTUAL_PREFIXES):
+        raise HelperError("virtual_device", f"{device} is a virtual device", device=device)
     if node.get("ro"):
-        raise HelperError(f"{device} salt-okunur.")
+        raise HelperError("read_only", f"{device} is read-only", device=device)
 
-    mounts = collect_mounts(node)
-    blocked = sorted(set(mounts) & PROTECTED_MOUNTS)
+    blocked = sorted(set(collect_mounts(node)) & PROTECTED_MOUNTS)
     if blocked:
+        mounts = ", ".join(blocked)
         raise HelperError(
-            f"{device} sistem diski ({', '.join(blocked)} burada) — yazmayı reddediyorum."
+            "system_disk",
+            f"{device} is a system disk ({mounts}); refusing to write",
+            device=device,
+            mounts=mounts,
         )
     return node
 
@@ -162,14 +187,15 @@ def unmount_all(node: dict) -> None:
     mounts = collect_mounts(node)
     if not mounts:
         return
-    status(f"{len(mounts)} bağlı bölüm ayrılıyor")
+    status("unmounting", str(len(mounts)))
     for mountpoint in mounts:
         if mountpoint == "[SWAP]":
-            raise HelperError("Hedefte swap var — yazmayı reddediyorum.")
+            raise HelperError("swap_on_target", "the target has active swap; refusing to write")
         subprocess.run(["umount", "--", mountpoint], capture_output=True, text=True)
     still = collect_mounts(find_disk(node["path"]))
     if still:
-        raise HelperError("Bağlı kalan bölüm var: " + ", ".join(still))
+        mounts = ", ".join(still)
+        raise HelperError("still_mounted", f"still mounted: {mounts}", mounts=mounts)
 
 
 def device_size(fd: int) -> int:
@@ -178,7 +204,7 @@ def device_size(fd: int) -> int:
 
 
 # --------------------------------------------------------------------------- #
-# Kaynak akışı
+# Source stream
 # --------------------------------------------------------------------------- #
 
 def open_source(path: str, compression: str):
@@ -193,16 +219,18 @@ def open_source(path: str, compression: str):
         members = [i for i in zf.infolist() if not i.is_dir()]
         if len(members) != 1:
             zf.close()
-            raise HelperError("Zip içinde tek bir imaj dosyası bekleniyordu.")
+            raise HelperError("zip_not_single", "the zip archive must hold exactly one image")
         return zf.open(members[0], "r"), zf
     if compression == "zstd":
         if shutil.which("zstdcat") is None:
-            raise HelperError("zstdcat bulunamadı (zstd paketi kurulu mu?).")
+            raise HelperError("zstdcat_missing", "zstdcat not found (install zstd)")
         proc = subprocess.Popen(
             ["zstdcat", "--", path], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
         )
         return proc.stdout, proc
-    raise HelperError(f"bilinmeyen sıkıştırma: {compression}")
+    raise HelperError(
+        "unknown_compression", f"unknown compression: {compression}", name=compression
+    )
 
 
 def close_source(stream, holder) -> None:
@@ -220,7 +248,7 @@ def close_source(stream, holder) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Yazma ve doğrulama
+# Writing and verification
 # --------------------------------------------------------------------------- #
 
 def write_image(device: str, source: str, compression: str, hint: int) -> tuple[int, str]:
@@ -235,16 +263,21 @@ def write_image(device: str, source: str, compression: str, hint: int) -> tuple[
         result("device_size", capacity)
         if hint and hint > capacity:
             raise HelperError(
-                f"İmaj cihazdan büyük: {hint} bayt > {capacity} bayt."
+                "image_too_large",
+                f"the image is larger than the device: {hint} > {capacity} bytes",
+                image=hint,
+                capacity=capacity,
             )
 
-        status("yazılıyor")
+        status("writing")
         while True:
             chunk = stream.read(CHUNK)
             if not chunk:
                 break
             if written + len(chunk) > capacity:
-                raise HelperError("İmaj cihaz kapasitesini aştı, yazma durduruldu.")
+                raise HelperError(
+                    "capacity_exceeded", "the image outgrew the device; writing stopped"
+                )
             check_abort()
             os.write(fd, chunk)
             digest.update(chunk)
@@ -255,7 +288,7 @@ def write_image(device: str, source: str, compression: str, hint: int) -> tuple[
                 last_report = now
 
         progress("write", written, written)
-        status("önbellek diske boşaltılıyor")
+        status("flushing")
         os.fsync(fd)
         os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED)
     finally:
@@ -266,21 +299,21 @@ def write_image(device: str, source: str, compression: str, hint: int) -> tuple[
 
 
 def verify_image(device: str, length: int, expected: str) -> None:
-    status("doğrulanıyor")
+    status("verifying")
     digest = hashlib.sha256()
     read_total = 0
     last_report = 0.0
 
     fd = os.open(device, os.O_RDONLY | os.O_CLOEXEC)
     try:
-        # Sayfa önbelleğini değil diski okuduğumuzdan emin ol.
+        # Make sure the device is read, not the page cache.
         os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED)
         while read_total < length:
             want = min(CHUNK, length - read_total)
             check_abort()
             chunk = os.read(fd, want)
             if not chunk:
-                raise HelperError("Cihaz beklenenden erken bitti.")
+                raise HelperError("device_ended_early", "the device ended early")
             digest.update(chunk)
             read_total += len(chunk)
             now = time.monotonic()
@@ -293,25 +326,25 @@ def verify_image(device: str, length: int, expected: str) -> None:
     progress("verify", length, length)
     if digest.hexdigest() != expected:
         raise HelperError(
-            "Doğrulama BAŞARISIZ — diske yazılan veri imajla aynı değil. Medya bozuk olabilir."
+            "verify_failed", "verification FAILED: the device does not match the image"
         )
-    status("doğrulama tamam")
+    status("verified")
 
 
 # --------------------------------------------------------------------------- #
-# Pi OS tohumlama
+# Raspberry Pi OS seeding
 # --------------------------------------------------------------------------- #
 
 def reread_partitions(device: str) -> None:
-    """Çekirdeğe yeni bölüm tablosunu okut.
+    """Make the kernel read the new partition table.
 
-    Hiçbir yolu zorunlu değildir: başarısız olsa bile bölüm düğümleri zaten
-    oluşmuş olabilir, seed tarafı yine de bekleyip tekrar bakar. Bu yüzden
-    burada hata fırlatılmaz -- eskiden partprobe kurulu değilse (parted paketi
-    yoksa) FileNotFoundError except bloğunun içinden fırlıyor ve yazılmış bir
-    medyada custom.toml adımını tümden düşürüyordu.
+    No method is mandatory: even when all fail the partition nodes may already
+    exist, and seeding waits and looks again. So nothing is raised here -- an
+    earlier version called partprobe from inside an except block, and without
+    parted installed its FileNotFoundError escaped and silently dropped the
+    custom.toml step on an otherwise written card.
     """
-    status("bölüm tablosu yeniden okunuyor")
+    status("rereading_partitions")
 
     try:
         fd = os.open(device, os.O_RDONLY | os.O_CLOEXEC)
@@ -323,8 +356,8 @@ def reread_partitions(device: str) -> None:
     except OSError:
         pass
 
-    # blockdev util-linux'ta, o da zaten sert bağımlılık. partprobe (parted)
-    # olmayabilir -- varsa denenir, yoksa sessizce geçilir.
+    # blockdev is in util-linux, already a hard dependency. partprobe (parted)
+    # may be missing -- try it when present, skip it quietly otherwise.
     for command in (["blockdev", "--rereadpt", device], ["partprobe", "--", device]):
         try:
             if subprocess.run(command, capture_output=True).returncode == 0:
@@ -334,7 +367,7 @@ def reread_partitions(device: str) -> None:
 
 
 def first_fat_partition(device: str) -> str | None:
-    for _ in range(10):
+    for _attempt in range(10):
         node = find_disk(device)
         for child in node.get("children") or []:
             if (child.get("fstype") or "").lower() in ("vfat", "fat", "fat32", "fat16"):
@@ -347,29 +380,28 @@ def first_fat_partition(device: str) -> str | None:
 def seed_custom_toml(device: str, toml_path: str) -> bool:
     partition = first_fat_partition(device)
     if partition is None:
-        result("pi_seeded", "no:fat-bolum-yok")
+        result("pi_seeded", "no:no-fat-partition")
         return False
 
-    mountpoint = tempfile.mkdtemp(prefix="kalip-bootfs-")
+    mountpoint = tempfile.mkdtemp(prefix="ingot-bootfs-")
     try:
         proc = subprocess.run(
             ["mount", "-t", "vfat", "-o", "rw,umask=000", "--", partition, mountpoint],
             capture_output=True, text=True,
         )
         if proc.returncode != 0:
-            result("pi_seeded", "no:mount-basarisiz")
+            result("pi_seeded", "no:mount-failed")
             return False
 
         present = os.listdir(mountpoint)
         if not any(marker in present for marker in PI_MARKERS):
-            result("pi_seeded", "no:pi-bootfs-degil")
+            result("pi_seeded", "no:not-pi-bootfs")
             return False
 
-        status("custom.toml bootfs'e yazılıyor")
+        status("seeding")
         target = os.path.join(mountpoint, "custom.toml")
         with open(toml_path, "rb") as src, open(target, "wb") as dst:
-            data = src.read()
-            dst.write(data)
+            dst.write(src.read())
             dst.flush()
             os.fsync(dst.fileno())
         os.chmod(target, 0o644)
@@ -386,7 +418,7 @@ def seed_custom_toml(device: str, toml_path: str) -> bool:
 # --------------------------------------------------------------------------- #
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="kalip ayrıcalıklı işçi")
+    parser = argparse.ArgumentParser(description="Ingot privileged helper")
     parser.add_argument("--device", required=True)
     parser.add_argument("--source", required=True)
     parser.add_argument("--compression", default="none")
@@ -396,18 +428,22 @@ def main() -> int:
     args = parser.parse_args()
 
     if os.geteuid() != 0:
-        emit("E Bu araç root olarak çalıştırılmalı (pkexec üzerinden çağrılır).")
+        report_error("not_root", "must run as root (it is started through pkexec)", {})
         return 2
 
     start_cancel_watch()
 
     try:
         if not os.path.isfile(args.source):
-            raise HelperError(f"Kaynak okunamadı: {args.source}")
+            raise HelperError(
+                "source_missing", f"cannot read the image: {args.source}", path=args.source
+            )
         if args.toml and not os.path.isfile(args.toml):
-            raise HelperError(f"custom.toml okunamadı: {args.toml}")
+            raise HelperError(
+                "toml_missing", f"cannot read custom.toml: {args.toml}", path=args.toml
+            )
 
-        status("hedef doğrulanıyor")
+        status("validating_target")
         node = assert_writable_target(args.device)
         unmount_all(node)
 
@@ -426,20 +462,27 @@ def main() -> int:
         if args.toml:
             seed_custom_toml(args.device, args.toml)
 
-        status("tamamlandı")
+        status("done")
         emit("D")
         return 0
     except HelperError as exc:
-        emit(f"E {exc}")
+        report_error(exc.code, str(exc), exc.params)
         return 1
     except OSError as exc:
-        if exc.errno == 16:  # EBUSY
-            emit("E Cihaz meşgul — başka bir program kullanıyor olabilir (O_EXCL reddedildi).")
+        if exc.errno == errno.EBUSY:
+            report_error(
+                "device_busy",
+                f"{args.device} is busy (O_EXCL was refused)",
+                {"device": args.device},
+            )
         else:
-            emit(f"E {exc.strerror or exc} ({args.device})")
+            error = exc.strerror or str(exc)
+            report_error(
+                "os_error", f"{error} ({args.device})", {"error": error, "device": args.device}
+            )
         return 1
     except KeyboardInterrupt:
-        emit("E İptal edildi.")
+        report_error("interrupted", "interrupted", {})
         return 130
 
 

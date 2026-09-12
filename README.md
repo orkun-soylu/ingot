@@ -1,146 +1,187 @@
-# kalıp
+# Ingot
 
-Linux için imaj yazıcı. Linux ISO'larını USB'ye, Raspberry Pi OS'i SD/NVMe/SSD'ye yazar;
-Pi imajı algılarsa ilk açılış ayarlarını (`bootfs/custom.toml`) da tohumlar.
+A disk image writer for Linux. Ingot writes Linux ISO images and Raspberry Pi OS
+images to USB drives and memory cards — including NVMe and SATA drives in USB
+enclosures — and, for Raspberry Pi OS, seeds first-boot settings into
+`bootfs/custom.toml`.
 
-## Neden
+The interface is in English and ships a Turkish translation, picked from the
+session language.
 
-`rpi-imager` 2.x Wayland'de kullanılamıyor: tüm GUI'yi root olarak yeniden başlatmaya
-çalışıyor, Wayland de normal bir oturumda root GUI'sinin compositor'a bağlanmasına izin
-vermiyor. Sonuç: parola sorulur, sonra sessizce ölür
+## Why
+
+`rpi-imager` 2.x cannot be used on Wayland: it relaunches its entire interface
+as root, and Wayland does not let a root GUI connect to the compositor of a
+normal session. It asks for a password and then silently dies
 ([#1336](https://github.com/raspberrypi/rpi-imager/issues/1336),
-[#1376](https://github.com/raspberrypi/rpi-imager/issues/1376) — hâlâ açık).
-`rpi-imager` Debian deposunda yok, Flatpak sürümü Flathub'dan kaldırıldı, `etcher-cli`
-ise deprecated.
+[#1376](https://github.com/raspberrypi/rpi-imager/issues/1376), still open).
+`rpi-imager` is not in the Debian archive, its Flatpak was removed from Flathub,
+and `etcher-cli` is deprecated.
 
-kalıp bunu yapısal olarak çözer: **arayüz hiçbir zaman root olmaz.** Yalnızca ekranla
-işi olmayan küçük bir helper `pkexec` ile yükselir. Parola kutusunu kullanıcının kendi
-polkit ajanı gösterir, yani o hata sınıfı hiç doğmaz.
+Ingot avoids the problem by construction: **the interface never runs as root.**
+Only a small helper with no display of its own is elevated through `pkexec`. The
+password prompt comes from the user's own polkit agent, so that class of failure
+cannot occur.
 
-## Kurulum
-
-```bash
-sudo apt install ./kalip_1.0.0-1_all.deb
-```
-
-Bağımlılıkları apt kendi çeker. Paket `Architecture: all` — her Debian/Ubuntu
-mimarisinde aynı dosya kurulur.
-
-Kaldırmak:
+## Installing
 
 ```bash
-sudo apt purge kalip      # hicbir dosya, polkit kurali veya menu girdisi kalmaz
+sudo apt install ./ingot_1.1.0-1_all.deb
 ```
 
-Paketin kurduğu şeyler:
+apt pulls in the dependencies. The package is `Architecture: all`, so the same
+file installs on every Debian or Ubuntu architecture.
 
-| Ne | Nereye |
+Removing:
+
+```bash
+sudo apt purge ingot      # leaves no files, polkit rule or menu entry behind
+```
+
+Ingot replaces **kalip**, the project's earlier name: installing it removes the
+old package, and images downloaded under the old name are carried over.
+
+What the package installs:
+
+| What | Where |
 |---|---|
-| Uygulama | `/usr/bin/kalip`, `/usr/lib/python3/dist-packages/kalip/` |
-| Ayrıcalıklı helper | `/usr/libexec/kalip/kalip-helper` (dpkg `root:root 0755` kurar) |
-| polkit kuralı | `/usr/share/polkit-1/actions/me.soylu.kalip.policy` |
-| Menü girdisi + ikon | `/usr/share/applications/`, `/usr/share/icons/hicolor/` |
-| Kılavuz | `man kalip` |
+| Application | `/usr/bin/ingot`, `/usr/lib/python3/dist-packages/ingot/` |
+| Privileged helper | `/usr/libexec/ingot/ingot-helper` (dpkg installs it `root:root 0755`) |
+| polkit rule | `/usr/share/polkit-1/actions/me.soylu.ingot.policy` |
+| Translations | `/usr/share/locale/tr/LC_MESSAGES/ingot.mo` |
+| Menu entry and icon | `/usr/share/applications/`, `/usr/share/icons/hicolor/` |
+| Manual | `man ingot` |
 
-> Helper'ın yolu polkit kuralında sabittir ve dosyayı **yalnız root yazabilir**.
-> Bakım betiği (postinst/postrm) yoktur; dpkg dosyaları zaten root'a ait kurduğu
-> için gerekmiyor.
+> The helper's path is fixed in the polkit rule and **only root can write the
+> file**. There are no maintainer scripts; dpkg already installs the files owned
+> by root.
 
-## Kullanım
+## Using
 
 ```
-kalip                      # veya menüden "kalıp"
-kalip ~/indirilenler/x.iso # dosyayla aç
+ingot                       # or "Ingot" from the menu
+ingot ~/Downloads/x.iso     # open with a file
 ```
 
-**Yerel dosya:** İmaj dosyası satırına tıkla, seç.
+**Local file:** click the image file row and pick one.
 
-**URL:** Adresi yapıştır → `Sorgula`. Proxmox'un "Download from URL"ü gibi çalışır:
-yönlendirmeleri takip eder, dosya adını (`Content-Disposition`, yoksa son URL'den),
-boyutu ve içerik tipini gösterir, devam ettirilebilir olup olmadığını söyler. `İndir`
-dosyayı `~/.cache/kalip/` altına alır — aynı imajı tekrar yazarken yeniden inmez.
+**URL:** paste the address and press `Query`. It works like Proxmox's "Download
+from URL": redirects are followed, and the file name (from `Content-Disposition`,
+otherwise the final URL), size and content type are shown along with whether the
+download can be resumed. `Download` saves the file under `~/.cache/ingot/`, so
+writing the same image again does not fetch it twice.
 
-Desteklenen biçimler: `.iso` `.img` `.raw` `.img.xz` `.img.gz` `.img.zst` `.zip`
-(biçim uzantıdan değil sihirli baytlardan anlaşılır).
+Supported formats: `.iso` `.img` `.raw` `.img.xz` `.img.gz` `.img.zst` `.zip`
+(detected from magic bytes, not the extension).
 
-**Pi OS paneli** yalnızca imaj gerçekten Pi imajıysa açılır. Tespit MBR'den yapılır
-(1. bölüm FAT + 2. bölüm Linux) ve sıkıştırmanın içinden okunur, dosya adına bakmaz.
-ISO'lar isohybrid olduğu için yanlış pozitif vermez.
+**The Raspberry Pi OS panel** only appears when the image really is a Raspberry Pi
+OS image. Detection reads the MBR (a FAT partition followed by a Linux one)
+through the compression and ignores the file name; ISO images are isohybrid and
+do not produce false positives. Keyboard layout, time zone and Wi-Fi country
+default to the settings of the machine doing the writing.
 
-## Güvenlik
+## Safety
 
-Yanlış cihaza yazmak tek gerçek risk. Kapılar:
+Writing to the wrong device is the one real risk. The gates:
 
-- **Sistem diski hiç listelenmez.** `/`, `/boot`, `/boot/firmware`, `/home`, `/usr`,
-  `/var`, `/nix` ya da swap barındıran disk üretilmez — filtrelenmez, hiç oluşturulmaz.
-- **Yalnızca çıkarılabilir aygıtlar listelenir.** USB kutusundaki NVMe/SSD de
-  buraya girer (`tran=usb`); dahili diskler arayüzde hiç görünmez.
-- **Helper arayüze güvenmez.** Aynı kontrolleri root tarafında `lsblk` ile yeniden yapar.
-  Asıl kapı orasıdır; arayüzdeki filtreler yalnızca kullanıcı deneyimidir.
-- **`O_EXCL`** ile açılır: cihaz kullanımdaysa çekirdek yazmayı reddeder.
-- Kapasite aşımı yazma **başlamadan** yakalanır.
-- Parola `openssl passwd -6`'ya **stdin'den** verilir — argv'de olsaydı `ps` ile okunurdu.
-  (Python 3.13'te `crypt` modülü kaldırıldığı için openssl kullanılıyor.)
+- **System disks are never listed.** A disk holding `/`, `/boot`,
+  `/boot/firmware`, `/home`, `/usr`, `/var`, `/nix` or swap is not built into
+  the list at all.
+- **Only removable devices are listed.** NVMe or SSD drives in USB enclosures
+  count (`tran=usb`); internal disks never appear in the interface.
+- **The helper does not trust the interface.** It repeats the checks as root
+  with `lsblk`. That is the real gate; the interface's filters only shape the
+  experience.
+- The device is opened with **`O_EXCL`**, so the kernel refuses a device in use.
+- An image larger than the device is caught **before** writing starts.
+- The password reaches `openssl passwd -6` **on stdin**; in argv `ps` would show
+  it. (Python 3.13 removed the `crypt` module, hence openssl.)
 
-**Doğrulama** açıkken yazılan bayt sayısı kadar geri okunup SHA-256 karşılaştırılır.
-Öncesinde `posix_fadvise(DONTNEED)` çağrılır; yoksa diski değil sayfa önbelleğini
-doğrulamış olurdun.
+With **verification** on, the written range is read back and compared by
+SHA-256. `posix_fadvise(DONTNEED)` is called first; otherwise the page cache
+would be verified instead of the device.
 
-**İptal** stdin üzerinden yapılır (`CANCEL`), sinyalle değil: helper root, arayüz değil,
-sinyal gönderemez. Arayüz çökerse boru kapanır ve helper yazmayı durdurur.
+**Cancelling** goes through stdin (`CANCEL`), not a signal: the helper is root
+and the interface is not, so it cannot signal it. If the interface crashes the
+pipe closes and the helper stops writing.
 
-## Sınırlar
+## Translations
 
-- `custom.toml` **Pi OS bookworm ve sonrası**. Daha eskisi için `ssh` + `userconf.txt`
-  gerekir; kalıp bunu yapmaz.
-- `custom.toml` **statik IP ve çoklu WiFi desteklemiyor** — biçimin kendi sınırı.
-  Statik adres için DHCP rezervasyonu kullan.
-- `.gz` imajlarda açılmış boyut 4 GiB üstünde sarar (gzip biçiminin sınırı); ilerleme
-  çubuğu o durumda belirsize düşer, yazma etkilenmez.
-- `.bz2` uzantısı tanınır ama yazılamaz.
+English is the source language. The root helper never produces interface text:
+pkexec does not pass the session language on, so the helper emits stable codes
+(`E system_disk {"device": …}`) and `ingot/messages.py` translates them in the
+user's process.
 
-## Geliştirme
+Catalogues live in `po/`. A translatable string without a translation is a
+build failure — `debian/rules` extracts every message with `xgettext` and checks
+each catalogue with `msgcmp`; the unit tests check the same and also that
+`{placeholders}` survive translation.
+
+Adding a language: add its code to `po/LINGUAS` and create `po/<code>.po`.
+
+## Limits
+
+- `custom.toml` applies to **Raspberry Pi OS bookworm and later**. Older releases
+  need `ssh` plus `userconf.txt`, which Ingot does not write.
+- `custom.toml` **cannot express static addressing or multiple Wi-Fi networks** —
+  a limit of the format. Use a DHCP reservation for a fixed address.
+- For `.gz` images the decompressed size wraps above 4 GiB (a limit of gzip); the
+  progress bar becomes indeterminate, the write is unaffected.
+- The `.bz2` extension is recognised but cannot be written.
+
+## Development
 
 ```bash
-python3 -m unittest discover -s tests -v     # 26 cekirdek testi, GUI gerektirmez
-xvfb-run -a python3 tests/smoke_gui.py       # arayuz duman testi, 20 kontrol, bassiz
-PYTHONPATH=. python3 -m kalip                # kurulmadan calistir
+python3 -m unittest discover -s tests -v    # core tests, no GUI needed
+xvfb-run -a python3 tests/smoke_gui.py      # headless interface smoke test
+PYTHONPATH=. python3 -m ingot               # run without installing
 ```
 
-Paketi derlemek:
+Running the interface in Turkish from a checkout:
 
 ```bash
-sudo apt build-dep .    # ya da debian/control icindeki Build-Depends
+mkdir -p build-i18n/locale/tr/LC_MESSAGES
+msgfmt -o build-i18n/locale/tr/LC_MESSAGES/ingot.mo po/tr.po
+LANGUAGE=tr PYTHONPATH=. python3 -m ingot
+```
+
+Building the package:
+
+```bash
+sudo apt build-dep .
 dpkg-buildpackage -us -uc -b
-lintian ../kalip_*.deb
+lintian ../ingot_*.deb
 ```
 
-Testler paketin derlenmesi sırasında da koşar (`debian/rules`'ta
-`override_dh_auto_test`), yani testi bozan bir değişiklik paketi üretemez.
+The tests also run during the package build (`override_dh_auto_test`), so a
+change that breaks them cannot produce a package.
 
-Helper'ı arayüzsüz sürebilirsin — hata ayıklarken en hızlı yol:
+The helper can be driven without the interface — the quickest way to debug:
 
 ```bash
-sudo ./helper/kalip-helper --device /dev/sdb --source pios.img.xz \
+sudo ./helper/ingot-helper --device /dev/sdb --source pios.img.xz \
      --compression xz --payload-size 5368709120 --verify --toml custom.toml
 ```
 
-Loop cihazıyla gerçek donanıma dokunmadan test:
+Testing against a loop device without touching real hardware:
 
 ```bash
-truncate -s 200M /tmp/hedef.raw
-T=$(sudo losetup --show -fP /tmp/hedef.raw)
-sudo ./helper/kalip-helper --device "$T" --source ... && sudo losetup -d "$T"
+truncate -s 200M /tmp/target.raw
+T=$(sudo losetup --show -fP /tmp/target.raw)
+sudo ./helper/ingot-helper --device "$T" --source ... && sudo losetup -d "$T"
 ```
 
-### Yapı
+### Layout
 
 ```
-kalip/devices.py      lsblk -> aygıt listesi, sistem diski elemesi
-kalip/source.py       biçim tespiti, açılmış boyut, akış, Pi MBR imzası
-kalip/remote.py       curl ile URL sorgu + indirme
-kalip/picfg.py        custom.toml üretimi ve doğrulaması
-kalip/privileged.py   pkexec köprüsü, satır tabanlı olay protokolü
-kalip/ui/window.py    GTK4 + libadwaita arayüz
-helper/kalip-helper   root tarafı: doğrula, yaz, doğrula, tohumla
+ingot/devices.py      lsblk -> device list, system disk exclusion
+ingot/source.py       format detection, decompressed size, streaming, Pi MBR signature
+ingot/remote.py       URL query and download through curl
+ingot/picfg.py        custom.toml generation, validation, host locale defaults
+ingot/messages.py     translations for the helper's status and error codes
+ingot/privileged.py   pkexec bridge, line-based event protocol
+ingot/i18n.py         gettext setup
+ingot/ui/window.py    GTK 4 + libadwaita interface
+helper/ingot-helper   root side: validate, write, verify, seed
+po/                   translation catalogues
 ```

@@ -1,29 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>me.soylu.kalip</id>
+  <id>me.soylu.ingot</id>
   <metadata_license>MIT</metadata_license>
   <project_license>MIT</project_license>
 
-  <name>kalıp</name>
-  <summary>Write disk images to USB, SD and NVMe</summary>
-  <summary xml:lang="tr">İmajları USB, SD ve NVMe'ye yazar</summary>
+  <name>Ingot</name>
+  <summary>Write disk images to USB drives and memory cards</summary>
+  <summary xml:lang="tr">Disk imajlarını USB belleğe ve hafıza kartına yazar</summary>
 
   <description>
     <p>
-      kalıp writes Linux ISO images and Raspberry Pi OS images to removable media
-      and internal drives. When the image is a Raspberry Pi OS image it can seed
-      first-boot settings — hostname, user, SSH keys, WiFi and locale — into
-      custom.toml on the boot partition.
+      Ingot writes Linux ISO images and Raspberry Pi OS images to removable
+      media, including NVMe and SATA drives in USB enclosures. When the image is
+      a Raspberry Pi OS image it can seed first-boot settings — hostname, user,
+      SSH keys, Wi-Fi and locale — into custom.toml on the boot partition.
     </p>
     <p>
       The user interface never runs as root. Only a small non-graphical helper is
       elevated through polkit, so it works normally on Wayland.
     </p>
     <p xml:lang="tr">
-      kalıp, Linux ISO ve Raspberry Pi OS imajlarını çıkarılabilir medyaya ve
-      dahili disklere yazar. İmaj bir Pi OS imajıysa ilk açılış ayarlarını
-      (hostname, kullanıcı, SSH anahtarı, WiFi, yerel ayarlar) bootfs üzerindeki
-      custom.toml dosyasına tohumlar.
+      Ingot, Linux ISO ve Raspberry Pi OS imajlarını çıkarılabilir medyaya yazar;
+      USB kutusundaki NVMe ve SATA diskler de buna dahildir. İmaj bir Raspberry Pi
+      OS imajıysa ilk açılış ayarlarını (hostname, kullanıcı, SSH anahtarı, WiFi,
+      yerel ayarlar) önyükleme bölümündeki custom.toml dosyasına yazar.
     </p>
     <p xml:lang="tr">
       Arayüz hiçbir zaman root olarak çalışmaz; yalnızca grafik arayüzü olmayan
@@ -37,8 +37,8 @@
     <name>Orkun Soylu</name>
   </developer>
 
-  <launchable type="desktop-id">me.soylu.kalip.desktop</launchable>
-  <provides><binary>kalip</binary></provides>
+  <launchable type="desktop-id">me.soylu.ingot.desktop</launchable>
+  <provides><binary>ingot</binary></provides>
   <categories>
     <category>System</category>
     <category>Utility</category>
@@ -46,6 +46,9 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="1.1.0" date="2026-09-12">
+      <description><p>Renamed from kalip. English interface with a Turkish translation.</p></description>
+    </release>
     <release version="1.0.2" date="2026-09-11">
       <description><p>Window fits its content; action buttons pinned to a bottom bar.</p></description>
     </release>

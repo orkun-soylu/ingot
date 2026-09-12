@@ -1,25 +1,15 @@
-kalip (1.0.2-1) unstable; urgency=medium
+ingot (1.1.0-1) unstable; urgency=medium
 
-  * Yaz dugmesinin altindaki genis bosluk giderildi: pencere sabit 760px
-    yerine icerigin dogal yuksekliginde aciliyor.
-  * Eylem alani (Yaz / Iptal / ilerleme / durum) alt cubuga tasindi; icerik
-    tastiginda buton kaydirilmadan erisilebilir kaliyor.
-  * Pi paneli acilip kapandiginda pencere yeniden icerige uyduruluyor;
-    onceden panel aciliyor ama pencere buyumedigi icin ayarlar kirpiliyordu.
-  * Bos durum metni artik satir yer kaplamiyor.
+  * Renamed from kalip. The package conflicts with and replaces kalip, so
+    installing it removes the old package; downloads cached under the old
+    name are carried over.
+  * The interface is now in English, with a Turkish translation shipped
+    through gettext and chosen from the session language. The build fails
+    if a translatable string has no translation.
+  * The privileged helper no longer produces interface text. pkexec does not
+    pass the session language on, so the helper emits stable status and
+    error codes and the interface translates them.
+  * Raspberry Pi keyboard layout, time zone and Wi-Fi country default to the
+    writing machine's settings instead of fixed Turkish values.
 
- -- Orkun Soylu <103385766+orkun-soylu@users.noreply.github.com>  Fri, 11 Sep 2026 23:20:00 +0100
-
-kalip (1.0.1-1) unstable; urgency=medium
-
-  * Arayuzden "dahili diskleri de goster" anahtari kaldirildi; yalnizca
-    cikarilabilir aygitlar listeleniyor. Ulasilamaz hale gelen dahili disk
-    onay dali da temizlendi. Helper'in sistem diski reddi degismedi.
-
- -- Orkun Soylu <103385766+orkun-soylu@users.noreply.github.com>  Fri, 11 Sep 2026 23:05:00 +0100
-
-kalip (1.0.0-1) unstable; urgency=medium
-
-  * Initial release.
-
- -- Orkun Soylu <103385766+orkun-soylu@users.noreply.github.com>  Fri, 11 Sep 2026 20:40:00 +0100
+ -- Orkun Soylu <103385766+orkun-soylu@users.noreply.github.com>  Sat, 12 Sep 2026 00:30:00 +0100

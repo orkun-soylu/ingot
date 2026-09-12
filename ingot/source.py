@@ -1,4 +1,4 @@
-"""İmaj kaynağı: biçim tespiti, açılmış boyut, akış açma, Pi OS imzası."""
+"""Image sources: format detection, decompressed size, streaming, Pi OS signature."""
 
 from __future__ import annotations
 
@@ -11,6 +11,8 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from .i18n import _
+
 MAGICS = {
     b"\xfd7zXZ\x00": "xz",
     b"\x1f\x8b": "gzip",
@@ -20,11 +22,11 @@ MAGICS = {
 
 SUPPORTED_SUFFIXES = (".iso", ".img", ".raw", ".xz", ".gz", ".zst", ".zip", ".bz2")
 
-# MBR bölüm tipi kodları
+# MBR partition type codes
 FAT_TYPES = {0x01, 0x04, 0x06, 0x0B, 0x0C, 0x0E}
 LINUX_TYPE = 0x83
 
-MBR_PEEK = 1 << 20  # Pi imzası için açılması yeterli olan ön kısım
+MBR_PEEK = 1 << 20  # enough decompressed data to read the partition table
 
 
 @dataclass
@@ -32,7 +34,7 @@ class ImageSource:
     path: Path
     compression: str | None
     file_size: int
-    payload_size: int | None  # açılmış boyut; bilinmiyorsa None
+    payload_size: int | None  # decompressed size; None when unknown
     is_pi_image: bool = False
 
     @property
@@ -41,9 +43,7 @@ class ImageSource:
 
     @property
     def format_label(self) -> str:
-        return {"xz": "xz", "gzip": "gzip", "zstd": "zstd", "zip": "zip"}.get(
-            self.compression, "ham imaj"
-        )
+        return self.compression or _("raw image")
 
 
 def detect_compression(path: Path) -> str | None:
@@ -89,10 +89,11 @@ def _zstd_payload_size(path: Path) -> int | None:
 
 
 def _gzip_payload_size(path: Path) -> int | None:
-    """gzip ISIZE alanı 2^32 modülüdür -> 4 GiB üstü açılmış boyut sarar.
+    """gzip's ISIZE field is modulo 2^32, so it wraps above 4 GiB.
 
-    Pi imajları 5 GiB civarı olduğu için .gz'de bu değer *tahmindir*; writer
-    toplamı aşan yazmayı belirsiz ilerlemeye çevirerek tolere eder.
+    Raspberry Pi images are around 5 GiB, which makes this an *estimate* for
+    .gz; the helper tolerates writing past it by switching to indeterminate
+    progress.
     """
     if path.stat().st_size < 4:
         return None
@@ -125,9 +126,9 @@ def payload_size(path: Path, compression: str | None) -> int | None:
 
 
 def open_stream(path: Path, compression: str | None):
-    """Açılmış baytları veren okunabilir akış döndürür.
+    """Return a readable stream of decompressed bytes.
 
-    zstd için stdlib yok (3.14'e kadar) -> zstdcat alt süreci.
+    The standard library has no zstd before 3.14, hence the zstdcat subprocess.
     """
     if compression is None:
         return path.open("rb"), None
@@ -144,13 +145,13 @@ def open_stream(path: Path, compression: str | None):
             ["zstdcat", "--", str(path)], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
         )
         return proc.stdout, proc
-    raise ValueError(f"bilinmeyen sıkıştırma: {compression}")
+    raise ValueError(f"unknown compression: {compression}")
 
 
 def close_stream(stream, holder) -> None:
-    """Akışı ve varsa onu tutan nesneyi kapat.
+    """Close the stream and whatever holds it open.
 
-    zstd alt süreci kill'den sonra wait edilmezse zombi kalır.
+    A zstd subprocess that is killed but never waited for stays a zombie.
     """
     if stream is not None:
         try:
@@ -167,10 +168,11 @@ def close_stream(stream, holder) -> None:
 
 
 def looks_like_pi_image(path: Path, compression: str | None) -> bool:
-    """İmajın ilk MiB'ini açıp MBR'ye bakar.
+    """Decompress the first MiB and inspect the MBR.
 
-    Pi OS imzası: 1. bölüm FAT (bootfs), 2. bölüm Linux (rootfs).
-    ISO'lar isohybrid olduğu için bu kalıba uymaz -> yanlış pozitif vermez.
+    Raspberry Pi OS signature: partition 1 FAT (bootfs), then a Linux
+    partition (rootfs). ISO images are isohybrid and do not match, so they do
+    not produce false positives.
     """
     stream = holder = None
     try:

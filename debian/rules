@@ -1,24 +1,51 @@
 #!/usr/bin/make -f
-export PYBUILD_NAME=kalip
+export PYBUILD_NAME=ingot
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+I18N := build-i18n
+PKG := debian/ingot
+LANGUAGES := $(shell cat po/LINGUAS)
 
 %:
 	dh $@ --with python3 --buildsystem=pybuild
+
+override_dh_auto_build:
+	dh_auto_build
+	# A translatable string without a translation fails the build: extract
+	# every message from the source and require each catalogue to cover it.
+	mkdir -p $(I18N)
+	xgettext --language=Python --from-code=UTF-8 \
+		--keyword=_ --keyword=N_ --keyword=ngettext:1,2 \
+		--package-name=ingot --output=$(I18N)/ingot.pot \
+		ingot/*.py ingot/ui/*.py
+	set -e; for lang in $(LANGUAGES); do \
+		msgcmp po/$$lang.po $(I18N)/ingot.pot; \
+		mkdir -p $(I18N)/locale/$$lang/LC_MESSAGES; \
+		msgfmt --check --statistics \
+			-o $(I18N)/locale/$$lang/LC_MESSAGES/ingot.mo po/$$lang.po; \
+	done
 
 override_dh_auto_test:
 	python3 -m unittest discover -s tests -v
 
 override_dh_auto_install:
 	dh_auto_install
-	# Ayricalikli yardimci. polkit tam bu yola yetki verir; dpkg dosyayi
-	# root:root 0755 kurar, bu yuzden bakim betigine gerek yok.
-	install -D -m 0755 helper/kalip-helper \
-		debian/kalip/usr/libexec/kalip/kalip-helper
-	install -D -m 0644 data/me.soylu.kalip.policy \
-		debian/kalip/usr/share/polkit-1/actions/me.soylu.kalip.policy
-	install -D -m 0644 data/me.soylu.kalip.desktop \
-		debian/kalip/usr/share/applications/me.soylu.kalip.desktop
-	install -D -m 0644 data/me.soylu.kalip.svg \
-		debian/kalip/usr/share/icons/hicolor/scalable/apps/me.soylu.kalip.svg
-	install -D -m 0644 data/me.soylu.kalip.metainfo.xml \
-		debian/kalip/usr/share/metainfo/me.soylu.kalip.metainfo.xml
+	# The privileged helper. polkit authorises exactly this path, and dpkg
+	# installs it root:root 0755, so no maintainer script is needed.
+	install -D -m 0755 helper/ingot-helper $(PKG)/usr/libexec/ingot/ingot-helper
+	install -D -m 0644 data/me.soylu.ingot.policy \
+		$(PKG)/usr/share/polkit-1/actions/me.soylu.ingot.policy
+	install -D -m 0644 data/me.soylu.ingot.desktop \
+		$(PKG)/usr/share/applications/me.soylu.ingot.desktop
+	install -D -m 0644 data/me.soylu.ingot.svg \
+		$(PKG)/usr/share/icons/hicolor/scalable/apps/me.soylu.ingot.svg
+	install -D -m 0644 data/me.soylu.ingot.metainfo.xml \
+		$(PKG)/usr/share/metainfo/me.soylu.ingot.metainfo.xml
+	for lang in $(LANGUAGES); do \
+		install -D -m 0644 $(I18N)/locale/$$lang/LC_MESSAGES/ingot.mo \
+			$(PKG)/usr/share/locale/$$lang/LC_MESSAGES/ingot.mo; \
+	done
+
+override_dh_auto_clean:
+	dh_auto_clean
+	rm -rf $(I18N)
