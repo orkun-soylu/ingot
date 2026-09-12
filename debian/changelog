@@ -1,3 +1,15 @@
+ingot (1.1.1-1) unstable; urgency=medium
+
+  * The write progress bar counts only data that has reached the device. The
+    kernel accepted a whole ISO into the page cache within seconds, so the bar
+    hit 100% at once and the real write happened during the final flush with
+    no progress shown. The helper now forces data onto the device every
+    32 MiB with fdatasync, drops it from the page cache, and reports progress
+    from what has been committed. Cancelling also takes effect promptly.
+  * Short writes are completed instead of being silently ignored.
+
+ -- Orkun Soylu <103385766+orkun-soylu@users.noreply.github.com>  Sat, 12 Sep 2026 23:40:00 +0100
+
 ingot (1.1.0-1) unstable; urgency=medium
 
   * Renamed from kalip. The package conflicts with and replaces kalip, so

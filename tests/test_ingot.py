@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 import ast
+import errno
 import gzip
+import hashlib
+import importlib.machinery
+import importlib.util
+import io
+import os
 import lzma
 import re
 import shutil
@@ -353,6 +359,81 @@ class HelperContractTest(unittest.TestCase):
 
     def test_unmounting_count_is_formatted(self):
         self.assertIn("2", messages.describe_status("unmounting", "2"))
+
+
+def load_helper():
+    loader = importlib.machinery.SourceFileLoader("ingot_helper", str(HELPER))
+    spec = importlib.util.spec_from_loader("ingot_helper", loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
+class HelperWriteTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.helper = load_helper()
+
+    def test_short_writes_are_completed(self):
+        sink = io.BytesIO()
+
+        def trickle(fd, data):
+            piece = bytes(data[:3])
+            sink.write(piece)
+            return len(piece)
+
+        with mock.patch.object(self.helper.os, "write", side_effect=trickle):
+            self.helper.write_all(99, b"0123456789" * 5)
+        self.assertEqual(sink.getvalue(), b"0123456789" * 5)
+
+    def test_a_device_that_accepts_nothing_is_an_error(self):
+        with mock.patch.object(self.helper.os, "write", return_value=0):
+            with self.assertRaises(OSError) as caught:
+                self.helper.write_all(99, b"data")
+        self.assertEqual(caught.exception.errno, errno.EIO)
+
+    def test_progress_never_runs_ahead_of_the_device(self):
+        """The bar may only count bytes that fdatasync has pushed to the device.
+
+        A regular file stands in for the block device; its size after each
+        fdatasync is what has been committed.
+        """
+        helper = self.helper
+        payload = bytes(range(256)) * (40 * 1024 * 1024 // 256)
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "image.img"
+            source.write_bytes(payload)
+            target = Path(tmp) / "device"
+            target.write_bytes(b"")
+
+            committed = [0]
+            real_fdatasync = os.fdatasync
+            reports: list[tuple[int, int]] = []
+
+            def fdatasync(fd):
+                real_fdatasync(fd)
+                committed[0] = os.fstat(fd).st_size
+
+            def progress(stage, done, total):
+                reports.append((done, committed[0]))
+
+            with mock.patch.object(helper, "SYNC_INTERVAL", 8 << 20), \
+                    mock.patch.object(helper, "CHUNK", 1 << 20), \
+                    mock.patch.object(helper, "PROGRESS_INTERVAL", 0), \
+                    mock.patch.object(helper, "device_size", return_value=1 << 30), \
+                    mock.patch.object(helper.os, "fdatasync", side_effect=fdatasync), \
+                    mock.patch.object(helper, "progress", side_effect=progress), \
+                    mock.patch.object(helper, "status"), \
+                    mock.patch.object(helper, "result"):
+                written, digest = helper.write_image(str(target), str(source), "none", len(payload))
+
+            self.assertEqual(written, len(payload))
+            self.assertEqual(digest, hashlib.sha256(payload).hexdigest())
+            self.assertEqual(target.read_bytes(), payload)
+            self.assertGreaterEqual(len(reports), 4)  # 40 MiB in 8 MiB commits
+            for done, on_device in reports:
+                self.assertLessEqual(done, on_device)
+            self.assertEqual(reports[-1][0], len(payload))
 
 
 def translatable_strings() -> dict[str, str | None]:

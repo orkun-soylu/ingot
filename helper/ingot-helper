@@ -43,6 +43,13 @@ import zipfile
 
 CHUNK = 4 << 20
 PROGRESS_INTERVAL = 0.25
+# Data is forced onto the device every SYNC_INTERVAL bytes and progress only
+# counts what has been forced. Without this the kernel took a whole ISO into
+# the page cache within seconds: the bar reached 100% while almost nothing had
+# reached the media, and the real write happened during the final fsync with
+# no progress at all. It also keeps gigabytes of dirty pages out of memory and
+# lets cancelling take effect promptly.
+SYNC_INTERVAL = 32 << 20
 
 BLKGETSIZE64 = 0x80081272
 BLKRRPART = 0x125F
@@ -198,6 +205,24 @@ def unmount_all(node: dict) -> None:
         raise HelperError("still_mounted", f"still mounted: {mounts}", mounts=mounts)
 
 
+def write_all(fd: int, data: bytes) -> None:
+    """os.write may write fewer bytes than asked; keep going until all are out."""
+    view = memoryview(data)
+    while view:
+        count = os.write(fd, view)
+        if count <= 0:
+            raise OSError(errno.EIO, "the device accepted no data")
+        view = view[count:]
+
+
+def commit_to_device(fd: int, start: int, end: int) -> None:
+    """Force everything written so far onto the device, then drop [start, end)
+    from the page cache so memory does not fill up with the image."""
+    os.fdatasync(fd)
+    if end > start:
+        os.posix_fadvise(fd, start, end - start, os.POSIX_FADV_DONTNEED)
+
+
 def device_size(fd: int) -> int:
     buf = fcntl.ioctl(fd, BLKGETSIZE64, b"\0" * 8)
     return struct.unpack("Q", buf)[0]
@@ -270,6 +295,7 @@ def write_image(device: str, source: str, compression: str, hint: int) -> tuple[
             )
 
         status("writing")
+        synced = 0
         while True:
             chunk = stream.read(CHUNK)
             if not chunk:
@@ -279,18 +305,22 @@ def write_image(device: str, source: str, compression: str, hint: int) -> tuple[
                     "capacity_exceeded", "the image outgrew the device; writing stopped"
                 )
             check_abort()
-            os.write(fd, chunk)
+            write_all(fd, chunk)
             digest.update(chunk)
             written += len(chunk)
-            now = time.monotonic()
-            if now - last_report >= PROGRESS_INTERVAL:
-                progress("write", written, hint if hint >= written else 0)
-                last_report = now
+            if written - synced >= SYNC_INTERVAL:
+                commit_to_device(fd, synced, written)
+                synced = written
+                now = time.monotonic()
+                if now - last_report >= PROGRESS_INTERVAL:
+                    progress("write", synced, hint if hint >= synced else 0)
+                    last_report = now
 
-        progress("write", written, written)
         status("flushing")
+        commit_to_device(fd, synced, written)
         os.fsync(fd)
         os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED)
+        progress("write", written, written)
     finally:
         os.close(fd)
         close_source(stream, holder)
