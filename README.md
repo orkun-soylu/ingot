@@ -25,8 +25,12 @@ cannot occur.
 
 ## Installing
 
+Download the `.deb` from the
+[latest release](https://github.com/orkun-soylu/ingot/releases/latest) and
+install it with apt:
+
 ```bash
-sudo apt install ./ingot_1.1.0-1_all.deb
+sudo apt install ./ingot_*_all.deb
 ```
 
 apt pulls in the dependencies. The package is `Architecture: all`, so the same
