@@ -8,6 +8,8 @@ enclosures — and, for Raspberry Pi OS, seeds first-boot settings into
 The interface is in English and ships a Turkish translation, picked from the
 session language.
 
+![Ingot's main window](screenshot.png)
+
 ## Why
 
 `rpi-imager` 2.x cannot be used on Wayland: it relaunches its entire interface
