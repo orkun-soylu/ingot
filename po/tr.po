@@ -130,8 +130,8 @@ msgstr "Doğrulama başarılı"
 msgid "Rereading the partition table"
 msgstr "Bölüm tablosu yeniden okunuyor"
 
-msgid "Writing custom.toml to the boot partition"
-msgstr "custom.toml önyükleme bölümüne yazılıyor"
+msgid "Writing the first-boot settings to the boot partition"
+msgstr "İlk açılış ayarları önyükleme bölümüne yazılıyor"
 
 msgid "Done"
 msgstr "Tamamlandı"
@@ -142,8 +142,8 @@ msgstr "Yardımcı root olarak çalışmalı; pkexec üzerinden başlatılır."
 msgid "Cannot read the image: {path}"
 msgstr "İmaj okunamıyor: {path}"
 
-msgid "Cannot read custom.toml: {path}"
-msgstr "custom.toml okunamıyor: {path}"
+msgid "Cannot read the first-boot settings: {path}"
+msgstr "İlk açılış ayarları okunamıyor: {path}"
 
 msgid "{device} does not exist."
 msgstr "{device} yok."
@@ -277,8 +277,8 @@ msgstr "Aygıt listesini yenile"
 msgid "Device"
 msgstr "Aygıt"
 
-msgid "Applied on first boot through bootfs/custom.toml."
-msgstr "İlk açılışta bootfs/custom.toml üzerinden uygulanır."
+msgid "Applied on first boot: through cloud-init on trixie images, custom.toml on bookworm."
+msgstr "İlk açılışta uygulanır: trixie imajlarında cloud-init, bookworm'da custom.toml ile."
 
 msgid "Hostname"
 msgstr "Hostname"
@@ -388,8 +388,8 @@ msgstr "Aygıttaki mevcut verinin tamamı kalıcı olarak kaybolacak."
 msgid "Erase everything on this device?"
 msgstr "Bu aygıttaki her şey silinsin mi?"
 
-msgid "Could not write custom.toml: {error}"
-msgstr "custom.toml yazılamadı: {error}"
+msgid "Could not prepare the first-boot settings: {error}"
+msgstr "İlk açılış ayarları hazırlanamadı: {error}"
 
 msgid "Waiting for authorization…"
 msgstr "Yetkilendirme bekleniyor…"
@@ -400,6 +400,10 @@ msgstr "Hazırlanıyor"
 msgid "Cancelling…"
 msgstr "İptal ediliyor…"
 
+msgid "The cloud-init settings were written to the boot partition."
+msgstr "cloud-init ayarları önyükleme bölümüne yazıldı."
+
+#: ingot/ui/window.py
 msgid "custom.toml was written to the boot partition."
 msgstr "custom.toml önyükleme bölümüne yazıldı."
 

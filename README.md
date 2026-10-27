@@ -2,8 +2,9 @@
 
 A disk image writer for Linux. Ingot writes Linux ISO images and Raspberry Pi OS
 images to USB drives and memory cards — including NVMe and SATA drives in USB
-enclosures — and, for Raspberry Pi OS, seeds first-boot settings into
-`bootfs/custom.toml`.
+enclosures — and, for Raspberry Pi OS, seeds first-boot settings (hostname, user,
+SSH, Wi-Fi, locale) into the boot partition: cloud-init's `user-data` and
+`network-config` on trixie images, `custom.toml` on bookworm.
 
 The interface is in English and ships a Turkish translation, picked from the
 session language.
@@ -127,10 +128,13 @@ Adding a language: add its code to `po/LINGUAS` and create `po/<code>.po`.
 
 ## Limits
 
-- `custom.toml` applies to **Raspberry Pi OS bookworm and later**. Older releases
-  need `ssh` plus `userconf.txt`, which Ingot does not write.
-- `custom.toml` **cannot express static addressing or multiple Wi-Fi networks** —
-  a limit of the format. Use a DHCP reservation for a fixed address.
+- The format follows the image: a boot partition with cloud-init's `meta-data`
+  (Raspberry Pi OS **trixie** and later) gets `user-data` / `network-config`;
+  otherwise `custom.toml` (**bookworm**). trixie ignores `custom.toml`. Releases
+  before bookworm need `ssh` plus `userconf.txt`, which Ingot does not write.
+- **No static addressing or multiple Wi-Fi networks** — `custom.toml` cannot
+  express them, and both formats offer the same settings. Use a DHCP
+  reservation for a fixed address.
 - For `.gz` images the decompressed size wraps above 4 GiB (a limit of gzip); the
   progress bar becomes indeterminate, the write is unaffected.
 - The `.bz2` extension is recognised but cannot be written.
@@ -166,7 +170,7 @@ The helper can be driven without the interface — the quickest way to debug:
 
 ```bash
 sudo ./helper/ingot-helper --device /dev/sdb --source pios.img.xz \
-     --compression xz --payload-size 5368709120 --verify --toml custom.toml
+     --compression xz --payload-size 5368709120 --verify --seed ./seed   # custom.toml + user-data [+ network-config]
 ```
 
 Testing against a loop device without touching real hardware:
@@ -183,7 +187,7 @@ sudo ./helper/ingot-helper --device "$T" --source ... && sudo losetup -d "$T"
 ingot/devices.py      lsblk -> device list, system disk exclusion
 ingot/source.py       format detection, decompressed size, streaming, Pi MBR signature
 ingot/remote.py       URL query and download through curl
-ingot/picfg.py        custom.toml generation, validation, host locale defaults
+ingot/picfg.py        custom.toml / cloud-init generation, validation, host locale defaults
 ingot/messages.py     translations for the helper's status and error codes
 ingot/privileged.py   pkexec bridge, line-based event protocol
 ingot/i18n.py         gettext setup

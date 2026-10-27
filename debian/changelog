@@ -1,3 +1,14 @@
+ingot (1.1.2-1) unstable; urgency=medium
+
+  * Raspberry Pi OS trixie settings are applied again. trixie images seed
+    cloud-init from the boot partition and no longer read custom.toml, so a
+    card written for trixie booted with none of the chosen hostname, user,
+    SSH, Wi-Fi or locale and asked for a username on the console. The helper
+    now writes user-data and network-config when the boot partition carries
+    cloud-init's meta-data, and custom.toml otherwise (bookworm).
+
+ -- Orkun Soylu <103385766+orkun-soylu@users.noreply.github.com>  Tue, 27 Oct 2026 16:21:56 +0300
+
 ingot (1.1.1-1) unstable; urgency=medium
 
   * The write progress bar counts only data that has reached the device. The

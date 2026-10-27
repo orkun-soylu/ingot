@@ -372,7 +372,7 @@ def reread_partitions(device: str) -> None:
     exist, and seeding waits and looks again. So nothing is raised here -- an
     earlier version called partprobe from inside an except block, and without
     parted installed its FileNotFoundError escaped and silently dropped the
-    custom.toml step on an otherwise written card.
+    first-boot settings on an otherwise written card.
     """
     status("rereading_partitions")
 
@@ -407,7 +407,27 @@ def first_fat_partition(device: str) -> str | None:
     return None
 
 
-def seed_custom_toml(device: str, toml_path: str) -> bool:
+# Files the GUI may leave in the seed directory, by image format.
+CLOUD_INIT_FILES = ("user-data", "network-config")
+CUSTOM_TOML = "custom.toml"
+
+
+def _copy_into(source: str, target: str) -> None:
+    with open(source, "rb") as src, open(target, "wb") as dst:
+        dst.write(src.read())
+        dst.flush()
+        os.fsync(dst.fileno())
+    os.chmod(target, 0o644)
+
+
+def seed_bootfs(device: str, seed_dir: str) -> bool:
+    """Copy the first-boot settings in the format the written image reads.
+
+    trixie images carry a cloud-init NoCloud seed on the boot partition
+    (`meta-data` next to `user-data`) and ignore custom.toml; bookworm images
+    read custom.toml. Writing custom.toml to a trixie card was the old
+    behaviour, and it silently applied nothing.
+    """
     partition = first_fat_partition(device)
     if partition is None:
         result("pi_seeded", "no:no-fat-partition")
@@ -429,13 +449,15 @@ def seed_custom_toml(device: str, toml_path: str) -> bool:
             return False
 
         status("seeding")
-        target = os.path.join(mountpoint, "custom.toml")
-        with open(toml_path, "rb") as src, open(target, "wb") as dst:
-            dst.write(src.read())
-            dst.flush()
-            os.fsync(dst.fileno())
-        os.chmod(target, 0o644)
-        result("pi_seeded", "yes")
+        if "meta-data" in present:
+            for name in CLOUD_INIT_FILES:
+                source = os.path.join(seed_dir, name)
+                if os.path.isfile(source):
+                    _copy_into(source, os.path.join(mountpoint, name))
+            result("pi_seeded", "yes:cloud-init")
+        else:
+            _copy_into(os.path.join(seed_dir, CUSTOM_TOML), os.path.join(mountpoint, CUSTOM_TOML))
+            result("pi_seeded", "yes:custom.toml")
         return True
     finally:
         subprocess.run(["umount", "--", mountpoint], capture_output=True)
@@ -454,7 +476,7 @@ def main() -> int:
     parser.add_argument("--compression", default="none")
     parser.add_argument("--payload-size", type=int, default=0)
     parser.add_argument("--verify", action="store_true")
-    parser.add_argument("--toml", default="")
+    parser.add_argument("--seed", default="", help="directory with custom.toml / user-data / network-config")
     args = parser.parse_args()
 
     if os.geteuid() != 0:
@@ -468,9 +490,12 @@ def main() -> int:
             raise HelperError(
                 "source_missing", f"cannot read the image: {args.source}", path=args.source
             )
-        if args.toml and not os.path.isfile(args.toml):
+        if args.seed and not (
+            os.path.isfile(os.path.join(args.seed, CUSTOM_TOML))
+            and os.path.isfile(os.path.join(args.seed, "user-data"))
+        ):
             raise HelperError(
-                "toml_missing", f"cannot read custom.toml: {args.toml}", path=args.toml
+                "seed_missing", f"cannot read the first-boot settings: {args.seed}", path=args.seed
             )
 
         status("validating_target")
@@ -489,8 +514,8 @@ def main() -> int:
         reread_partitions(args.device)
         subprocess.run(["udevadm", "settle", "--timeout=15"], capture_output=True)
 
-        if args.toml:
-            seed_custom_toml(args.device, args.toml)
+        if args.seed:
+            seed_bootfs(args.device, args.seed)
 
         status("done")
         emit("D")

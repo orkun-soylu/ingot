@@ -60,7 +60,7 @@ class WriteRequest:
     compression: str | None
     payload_size: int = 0
     verify: bool = True
-    toml_path: Path | None = None
+    seed_dir: Path | None = None
 
     def helper_args(self) -> list[str]:
         args = [
@@ -71,8 +71,8 @@ class WriteRequest:
         ]
         if self.verify:
             args.append("--verify")
-        if self.toml_path:
-            args += ["--toml", str(self.toml_path)]
+        if self.seed_dir:
+            args += ["--seed", str(self.seed_dir)]
         return args
 
 

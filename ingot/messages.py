@@ -17,14 +17,14 @@ STATUS = {
     "verifying": N_("Verifying"),
     "verified": N_("Verification passed"),
     "rereading_partitions": N_("Rereading the partition table"),
-    "seeding": N_("Writing custom.toml to the boot partition"),
+    "seeding": N_("Writing the first-boot settings to the boot partition"),
     "done": N_("Done"),
 }
 
 ERRORS = {
     "not_root": N_("The helper must run as root; it is started through pkexec."),
     "source_missing": N_("Cannot read the image: {path}"),
-    "toml_missing": N_("Cannot read custom.toml: {path}"),
+    "seed_missing": N_("Cannot read the first-boot settings: {path}"),
     "device_missing": N_("{device} does not exist."),
     "not_whole_device": N_("{device} is not a whole block device."),
     "virtual_device": N_("{device} is a virtual device and cannot be written to."),

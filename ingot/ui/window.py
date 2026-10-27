@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import shutil
+import tempfile
 import threading
 from pathlib import Path
 
@@ -42,7 +44,7 @@ class IngotWindow(Adw.ApplicationWindow):
         self._remote: remote.RemoteInfo | None = None
         self._job: WriteJob | None = None
         self._busy = False
-        self._toml_tmp: Path | None = None
+        self._seed_tmp: Path | None = None
         self._cancel_download = threading.Event()
 
         self.set_content(self._build())
@@ -130,7 +132,7 @@ class IngotWindow(Adw.ApplicationWindow):
     def _build_pi_group(self) -> Adw.PreferencesGroup:
         group = Adw.PreferencesGroup(
             title="Raspberry Pi OS",
-            description=_("Applied on first boot through bootfs/custom.toml."),
+            description=_("Applied on first boot: through cloud-init on trixie images, custom.toml on bookworm."),
             visible=False,
         )
         self.pi_group = group
@@ -493,19 +495,22 @@ class IngotWindow(Adw.ApplicationWindow):
 
     def start_write(self, disk: Disk, config: PiConfig | None) -> None:
         assert self._source is not None
-        toml_path = None
+        seed_dir = None
         if config is not None:
             try:
-                handle = Path(GLib.get_user_runtime_dir() or "/tmp") / "ingot-custom.toml"
-                handle.write_text(config.to_toml(), encoding="utf-8")
-                handle.chmod(0o600)
-                toml_path = handle
+                seed_dir = Path(tempfile.mkdtemp(
+                    prefix="ingot-seed-", dir=GLib.get_user_runtime_dir() or None
+                ))
+                config.write_seed(seed_dir)
             except (OSError, ConfigError) as exc:
+                if seed_dir is not None:
+                    shutil.rmtree(seed_dir, ignore_errors=True)
                 self.notify_user(
-                    _("Could not write custom.toml: {error}").format(error=exc), "error"
+                    _("Could not prepare the first-boot settings: {error}").format(error=exc),
+                    "error",
                 )
                 return
-        self._toml_tmp = toml_path
+        self._seed_tmp = seed_dir
 
         request = WriteRequest(
             device=disk.path,
@@ -513,7 +518,7 @@ class IngotWindow(Adw.ApplicationWindow):
             compression=self._source.compression,
             payload_size=self._source.payload_size or 0,
             verify=self.verify_row.get_active(),
-            toml_path=toml_path,
+            seed_dir=seed_dir,
         )
 
         self._set_busy(True)
@@ -542,7 +547,9 @@ class IngotWindow(Adw.ApplicationWindow):
         elif kind == "fact":
             key, value = payload
             if key == "pi_seeded":
-                if value == "yes":
+                if value == "yes:cloud-init":
+                    self.set_status(_("The cloud-init settings were written to the boot partition."))
+                elif value.startswith("yes"):
                     self.set_status(_("custom.toml was written to the boot partition."))
                 else:
                     reason = describe_seed_reason(value.split(":", 1)[-1])
@@ -560,9 +567,9 @@ class IngotWindow(Adw.ApplicationWindow):
     def _on_job_finished(self, outcome: WriteOutcome) -> None:
         self._set_busy(False)
         self._job = None
-        if self._toml_tmp is not None:
-            self._toml_tmp.unlink(missing_ok=True)
-            self._toml_tmp = None
+        if self._seed_tmp is not None:
+            shutil.rmtree(self._seed_tmp, ignore_errors=True)
+            self._seed_tmp = None
 
         if outcome.ok:
             size = human_bytes(int(outcome.facts.get("written", 0)))

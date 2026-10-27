@@ -23,6 +23,8 @@ import zipfile
 from pathlib import Path
 from unittest import mock
 
+import yaml
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
@@ -116,6 +118,44 @@ class PiConfigTest(unittest.TestCase):
         key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample orkun@host"
         self.base.authorized_keys = [key]
         self.assertEqual(tomllib.loads(self.base.to_toml())["ssh"]["authorized_keys"], [key])
+
+    def test_user_data_is_valid_yaml(self):
+        self.base.authorized_keys = ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample orkun@host"]
+        self.base.keymap, self.base.timezone = "tr", "Europe/Istanbul"
+        text = self.base.to_user_data()
+        self.assertTrue(text.startswith("#cloud-config\n"))
+        data = yaml.safe_load(text)
+        self.assertEqual(data["hostname"], "raspberrypi")
+        user = data["users"][0]
+        self.assertEqual((user["name"], user["hashed_passwd"]), ("orkun", "$6$abc$def"))
+        self.assertEqual(user["ssh_authorized_keys"], self.base.authorized_keys)
+        self.assertEqual(data["keyboard"]["layout"], "tr")
+        self.assertIn(["systemctl", "enable", "--now", "ssh"], data["runcmd"])
+
+    def test_ssh_disabled_leaves_sshd_off(self):
+        self.base.ssh_enabled = False
+        data = yaml.safe_load(self.base.to_user_data())
+        self.assertNotIn("runcmd", data)
+
+    def test_network_config_only_with_wifi(self):
+        self.assertIsNone(self.base.to_network_config())
+        self.base.wifi_ssid = 'Ev"Ağı: #1'
+        self.base.wifi_password = "p'a\"s"
+        self.base.wifi_country = "tr"
+        self.base.wifi_hidden = True
+        wlan = yaml.safe_load(self.base.to_network_config())["network"]["wifis"]["wlan0"]
+        self.assertEqual(wlan["regulatory-domain"], "TR")
+        ap = wlan["access-points"]['Ev"Ağı: #1']
+        self.assertEqual(ap, {"password": "p'a\"s", "hidden": True})
+        runcmd = yaml.safe_load(self.base.to_user_data())["runcmd"]
+        self.assertIn(["raspi-config", "nonint", "do_wifi_country", "TR"], runcmd)
+
+    def test_write_seed_holds_both_formats(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            seed = Path(tmp) / "seed"
+            self.base.write_seed(seed)
+            self.assertEqual(sorted(p.name for p in seed.iterdir()), ["custom.toml", "user-data"])
+            self.assertEqual((seed / "user-data").stat().st_mode & 0o777, 0o600)
 
     def test_invalid_hostname_is_rejected(self):
         for bad in ("-start", "end-", "has space", "a" * 64, ""):

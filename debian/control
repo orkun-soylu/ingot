@@ -8,6 +8,7 @@ Build-Depends: debhelper-compat (= 13),
                pybuild-plugin-pyproject,
                python3-all,
                python3-setuptools,
+               python3-yaml,
                zstd
 Standards-Version: 4.7.0
 Rules-Requires-Root: no
