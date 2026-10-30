@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- the app icon in one colour: media card with clipped corner, contact pins and write arrow cut out -->
+  <path fill="#2e3436" fill-rule="evenodd" d="M4 1h6l3 3v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zM4.5 2.5v2.5h1V2.5zM6.25 2.5v2.5h1V2.5zM8 2.5v2.5h1V2.5zM7.25 7v3.5H5.5L8 13.5l2.5-3h-1.75V7z"/>
+</svg>

@@ -39,6 +39,8 @@ override_dh_auto_install:
 		$(PKG)/usr/share/applications/me.soylu.ingot.desktop
 	install -D -m 0644 data/me.soylu.ingot.svg \
 		$(PKG)/usr/share/icons/hicolor/scalable/apps/me.soylu.ingot.svg
+	install -D -m 0644 data/me.soylu.ingot-symbolic.svg \
+		$(PKG)/usr/share/icons/hicolor/symbolic/apps/me.soylu.ingot-symbolic.svg
 	install -D -m 0644 data/me.soylu.ingot.metainfo.xml \
 		$(PKG)/usr/share/metainfo/me.soylu.ingot.metainfo.xml
 	for lang in $(LANGUAGES); do \

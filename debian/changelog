@@ -1,3 +1,10 @@
+ingot (1.1.3-1) unstable; urgency=medium
+
+  * Ship a symbolic app icon, for shell panels and docks that draw app
+    icons in one colour.
+
+ -- Orkun Soylu <103385766+orkun-soylu@users.noreply.github.com>  Fri, 30 Oct 2026 12:40:18 +0300
+
 ingot (1.1.2-1) unstable; urgency=medium
 
   * Raspberry Pi OS trixie settings are applied again. trixie images seed
